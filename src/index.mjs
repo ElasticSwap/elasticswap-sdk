@@ -134,10 +134,11 @@ export class SDK extends Subscribable {
   }
 
   async changeSigner(signer) {
-    this.account = signer.address;
-    if (!this.account && signer.getAddress) {
-      this.account = await signer.getAddress();
+    let address = signer.address;
+    if (!address && signer.getAddress) {
+      address = await signer.getAddress();
     }
+    this.account = address;
     this.signer = signer;
     this.balanceOf(this.account);
     await this.setName();
