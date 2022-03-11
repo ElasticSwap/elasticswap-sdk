@@ -154,6 +154,11 @@ export const amountFormatter = ({
   return base;
 };
 
+export const toHex = (num) => {
+  const dec = BigNumber(num).toNumber();
+  return `0x${(dec + 0x10000).toString(16).substr(-4).toUpperCase()}`;
+};
+
 /*
 Rounding Types:
   ROUND_UP: 0 - Rounds away from zero

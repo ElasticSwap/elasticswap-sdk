@@ -1,65 +1,72 @@
 /* eslint consistent-return: 0 */
 
-import { ethers } from 'ethers';
 import Notify from 'bnc-notify';
 import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json';
-import Subscribable from './Subscribable.mjs';
-import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
-import ExchangeClass from './exchange/Exchange.mjs';
+
+import { ethers } from 'ethers';
+
 import ERC20Class from './tokens/ERC20.mjs';
 import ErrorHandlingClass from './ErrorHandling.mjs';
+import ExchangeClass from './exchange/Exchange.mjs';
+import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
 import LocalStorageAdapter from './adapters/LocalStorageAdapter.mjs';
+import StakingPoolsClass from './staking/StakingPools.mjs';
+import Subscribable from './Subscribable.mjs';
 
 import {
   amountFormatter,
+  round,
+  shortenAddress,
   swapBigNumber,
   toBigNumber,
   toEthersBigNumber,
+  toHex,
   toKey,
   toNumber,
-  upTo,
-  shortenAddress,
   truncate,
+  upTo,
   validateIsAddress,
-  round,
 } from './utils/utils.mjs';
 
 export const utils = {
   amountFormatter,
+  round,
+  shortenAddress,
   swapBigNumber,
   toBigNumber,
   toEthersBigNumber,
+  toHex,
   toKey,
   toNumber,
-  upTo,
   truncate,
-  round,
+  upTo,
+  validateIsAddress,
 };
-
-const prefix = '@elasticswap/sdk';
 
 export const ExchangeFactory = ExchangeFactoryClass;
 export const Exchange = ExchangeClass;
 export const ERC20 = ERC20Class;
 export const ErrorHandling = ErrorHandlingClass;
+export const StakingPools = StakingPoolsClass;
 
 export class SDK extends Subscribable {
-  constructor({ account, customFetch, env, provider, signer, storageAdapter }) {
+  constructor({ customFetch, env, provider, signer, storageAdapter }) {
     super();
-    this._provider = provider || ethers.getDefaultProvider();
+    if (provider) {
+      this._provider = provider;
+      this.env = env;
+    } else {
+      this._provider = ethers.getDefaultProvider();
+      this.env = { ...env };
+    }
+
+    this._loadNetwork();
+
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
     this._storageAdapter = storageAdapter || new LocalStorageAdapter();
-    this.signer = signer;
-    this.account = account;
-    this.env = env;
-    this.setName();
 
     this._balances = {};
     this._balancesToTrack = [];
-
-    if (this.account) {
-      this.balanceOf(this.account);
-    }
 
     this.provider.getBlockNumber().then((blockNumber) => {
       this._blockNumber = blockNumber;
@@ -91,12 +98,17 @@ export class SDK extends Subscribable {
       });
     }
 
-    validateIsAddress(this.env.exchangeFactoryAddress, { prefix });
+    if (signer) {
+      this.changeSigner(signer);
+    }
+  }
 
-    this._exchangeFactory = new ExchangeFactory(
-      this,
-      this.env.exchangeFactoryAddress,
-    );
+  get account() {
+    return this._account;
+  }
+
+  get accountName() {
+    return this._accountName;
   }
 
   get balances() {
@@ -108,6 +120,19 @@ export class SDK extends Subscribable {
   }
 
   get exchangeFactory() {
+    if (this._exchangeFactory) {
+      return this._exchangeFactory;
+    }
+
+    try {
+      this._exchangeFactory = new ExchangeFactory(
+        this,
+        this.env.contracts[this.networkHex].ExchangeFactory.address,
+      );
+    } catch (e) {
+      console.error('Unable to load exchangeFactory:', e);
+    }
+
     return this._exchangeFactory;
   }
 
@@ -115,8 +140,48 @@ export class SDK extends Subscribable {
     return this._fetch;
   }
 
+  get name() {
+    console.warn(
+      'WARNING: sdk.name is deprecated and will be removed in a future version. Please use sdk.accountName.',
+    );
+    return this.accountName;
+  }
+
+  get networkHex() {
+    return toHex(this.networkId);
+  }
+
+  get networkId() {
+    return this._networkId || this.env.networkId;
+  }
+
+  get networkName() {
+    return this._networkName || this.env.networkName;
+  }
+
   get provider() {
     return this.signer ? this.signer.provider : this._provider;
+  }
+
+  get signer() {
+    return this._signer;
+  }
+
+  get stakingPools() {
+    if (this._stakingPools) {
+      return this._stakingPools;
+    }
+
+    try {
+      this._stakingPools = new StakingPools(
+        this,
+        this.env.contracts[this.networkHex].StakingPools.address,
+      );
+    } catch (e) {
+      console.error('Unable to load stakingPools:', e);
+    }
+
+    return this._stakingPools;
   }
 
   get storageAdapter() {
@@ -138,12 +203,19 @@ export class SDK extends Subscribable {
   }
 
   async changeSigner(signer) {
-    let newAccount = signer.address;
-    if (!newAccount && signer.getAddress) {
-      newAccount = await signer.getAddress();
-    }
-    this.account = newAccount;
-    this.signer = signer;
+    const [newAccount, network] = await Promise.all([
+      signer.getAddress(),
+      signer.provider.getNetwork(),
+    ]);
+
+    this._account = newAccount;
+    this._signer = signer;
+    this._networkId = network.chainId;
+    this._networkName = network.name;
+
+    delete this._exchangeFactory;
+    delete this._stakingPools;
+
     this.balanceOf(this.account);
     await this.setName();
     this.touch();
@@ -162,8 +234,11 @@ export class SDK extends Subscribable {
   }
 
   async disconnectSigner() {
-    this.account = undefined;
-    this.signer = undefined;
+    delete this._account;
+    delete this._accountName;
+    delete this._exchangeFactory;
+    delete this._signer;
+    delete this._stakingPools;
     this.touch();
   }
 
@@ -228,11 +303,11 @@ export class SDK extends Subscribable {
 
   async setName() {
     if (this.account) {
-      this.name = shortenAddress(this.account);
+      this._accountName = shortenAddress(this.account);
       try {
         const ensName = await this.provider.lookupAddress(this.account);
         if (ensName) {
-          this.name = ensName;
+          this._accountName = ensName;
         }
       } catch (e) {
         console.error('unable to look up ens name', e.message);
@@ -248,6 +323,12 @@ export class SDK extends Subscribable {
       this._balances[this._balancesToTrack[i]] = toBigNumber(balances[i], 18);
     }
     this.touch();
+  }
+
+  async _loadNetwork() {
+    const { chainId, name } = this.provider.getNetwork();
+    this._networkId = chainId;
+    this._networkName = name;
   }
 }
 
