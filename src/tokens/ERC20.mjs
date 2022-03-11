@@ -8,7 +8,6 @@ export default class ERC20 extends Base {
     this._contract = sdk.contract({
       abi: ERC20Contract.abi,
       address,
-      readonly: false,
     });
   }
 

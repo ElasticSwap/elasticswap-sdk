@@ -25,7 +25,6 @@ export default class ExchangeFactory extends QueryFilterable {
     this._contract = sdk.contract({
       abi: ExchangeFactorySolidity.abi,
       address,
-      readonly: false,
     });
 
     this._errorHandling = new ErrorHandling('exchangeFactory');

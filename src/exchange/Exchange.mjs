@@ -26,7 +26,6 @@ export default class Exchange extends Base {
     this._contract = sdk.contract({
       abi: ExchangeSolidity.abi,
       address: exchangeAddress,
-      readonly: false,
     });
     this._errorHandling = new ErrorHandling('exchange');
   }
