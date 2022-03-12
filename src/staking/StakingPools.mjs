@@ -59,6 +59,25 @@ export default class StakingPools extends Base {
     );
   }
 
+  async getAPY(poolId, overrides = {}) {
+
+  }
+
+  async getAPR(poolId, overrides = {}) {
+    const [poolRate, totalDeposited, poolToken] = await Promise.all([
+      this.getPoolRewardRate(poolId, overrides),
+      this.getPoolTotalDeposited(poolId, overrides),
+      this.getPoolToken(poolId, overrides),
+    ]);
+
+    // strategies for getting apr
+    // token = tic, 1 to 1
+    // token = tic pair, 1 to 2
+    // token = other, price to price (TODO)
+
+    return poolRate.multipliedBy(31557600).dividedBy();
+  }
+
   async getPoolRewardRate(poolId, overrides = {}) {
     const rate = await this.contract.getPoolRewardRate(
       this.toNumber(poolId),
@@ -113,6 +132,11 @@ export default class StakingPools extends Base {
     );
 
     return this.toBigNumber(amount, 18);
+  }
+
+  async getTVL(poolId, valuePerToken, overrides = {}) {
+    const totalDeposited = await this.getPoolTotalDeposited(poolId, overrides);
+    return totalDeposited.multipliedBy(valuePerToken);
   }
 
   async rewardRate(overrides = {}) {
