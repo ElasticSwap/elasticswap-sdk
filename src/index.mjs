@@ -374,7 +374,7 @@ export class SDK extends Subscribable {
    * @param {Object} config - The configuration of the contract
    * @param {Object[]} abi - The contract ABI
    * @param {string} config.address - The EVM address of the contract
-   * @param {boolean} config.readonly=false - Whether the contract is readonly (optional)
+   * @param {boolean} [config.readonly=false] - Whether the contract is readonly (optional)
    * @returns {ethers.Contract}
    * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
    * @memberof SDK
