@@ -2,6 +2,10 @@ import StakingPoolsContract from '../abi/StakingPools.json';
 import Base from '../Base.mjs';
 
 export default class StakingPools extends Base {
+  /**
+   * @param  {SDK} sdk - An instance of the SDK class
+   * @param  {} address
+   */
   constructor(sdk, address) {
     super(sdk);
     this._address = address;
@@ -10,7 +14,13 @@ export default class StakingPools extends Base {
       address,
     });
   }
-
+  /**
+   * Provides an ethers contract object via the sdk.
+   *
+   * @param  {SDK} sdk - An instance of the SDK class
+   * @param  {string} address - An EVM compatible wallet address
+   * @param  {boolean} readonly=false - readonly contracts use the provider even if a signer exists
+   */
   static contract(sdk, address, readonly = false) {
     return sdk.contract({
       abi: StakingPoolsContract.abi,
@@ -18,11 +28,17 @@ export default class StakingPools extends Base {
       readonly,
     });
   }
-
+  /**
+   * @returns {string} address - The EVM address of the StakingPools contract this instance calls
+   */
   get address() {
     return this._address;
   }
 
+  /**
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - An ethers.js Contract instance
+   */
   get contract() {
     return this._contract;
   }
@@ -59,9 +75,7 @@ export default class StakingPools extends Base {
     );
   }
 
-  async getAPY(poolId, overrides = {}) {
-
-  }
+  async getAPY(poolId, overrides = {}) {}
 
   async getAPR(poolId, overrides = {}) {
     const [poolRate, totalDeposited, poolToken] = await Promise.all([

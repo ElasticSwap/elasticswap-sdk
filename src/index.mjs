@@ -9,9 +9,10 @@ import ERC20Class from './tokens/ERC20.mjs';
 import ErrorHandlingClass from './ErrorHandling.mjs';
 import ExchangeClass from './exchange/Exchange.mjs';
 import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
-import LocalStorageAdapter from './adapters/LocalStorageAdapter.mjs';
+import LocalStorageAdapterClass from './adapters/LocalStorageAdapter.mjs';
 import StakingPoolsClass from './staking/StakingPools.mjs';
-import Subscribable from './Subscribable.mjs';
+import StorageAdapterClass from './adapters/StorageAdapter.mjs';
+import SubscribableClass from './Subscribable.mjs';
 
 import {
   amountFormatter,
@@ -43,22 +44,49 @@ export const utils = {
   validateIsAddress,
 };
 
-export const ExchangeFactory = ExchangeFactoryClass;
-export const Exchange = ExchangeClass;
 export const ERC20 = ERC20Class;
 export const ErrorHandling = ErrorHandlingClass;
+export const Exchange = ExchangeClass;
+export const ExchangeFactory = ExchangeFactoryClass;
+export const LocalStorageAdapter = LocalStorageAdapterClass;
 export const StakingPools = StakingPoolsClass;
+export const StorageAdapter = StorageAdapterClass;
+export const Subscribable = SubscribableClass;
 
+/**
+ * Primary class. All things extend from here. SDK proxies ethers.js to provide an interface for
+ * all ElasticSwap EVM contracts.
+ *
+ * @export
+ * @class SDK
+ * @extends {Subscribable}
+ */
 export class SDK extends Subscribable {
+  /**
+   * Creates an instance of SDK.
+   *
+   * @param {Object} config - { customFetch, env, provider, signer, storageAdapter }
+   * @param {function} config.customFetch - should implement the Fetch API (optional)
+   * @param {Object} config.env - environment configuration
+   * @param {Object} config.env.blocknative - bnc-notify initialization options
+   * @param {Object} config.env.contracts - deployed contract configuration by network
+   * @param {hardhat-deploy.Export} config.env.contracts[chainIdHex]
+   * @param {hardhat-deploy.MultiExport} config.env.deployments - deployed contract configuration
+   * @param {ethers.providers.Provider} config.provider - default provider (optional)
+   * @param {ethers.Signer} config.signer - initial ethers signer (optional)
+   * @param {StorageProvider} config.storageProvider - (optional)
+   * @memberof SDK
+   * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API}
+   * @see {@link https://docs.blocknative.com/notify#initialization}
+   * @see {@link https://www.npmjs.com/package/hardhat-deploy/v/0.10.4#exporting-deployments}
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/}
+   * @see {@link https://docs.ethers.io/v5/api/signer/}
+   * @see {@link StorageAdapter}
+   */
   constructor({ customFetch, env, provider, signer, storageAdapter }) {
     super();
-    if (provider) {
-      this._provider = provider;
-      this.env = env;
-    } else {
-      this._provider = ethers.getDefaultProvider();
-      this.env = { ...env };
-    }
+
+    this.env = env;
 
     this._loadNetwork();
 
@@ -67,18 +95,6 @@ export class SDK extends Subscribable {
 
     this._balances = {};
     this._balancesToTrack = [];
-
-    this.provider.getBlockNumber().then((blockNumber) => {
-      this._blockNumber = blockNumber;
-    });
-
-    this.provider.on('block', (blockNumber) => {
-      this._blockNumber = blockNumber;
-      this.updateBalances().catch((e) => {
-        console.warn('Failed to update balances', e.message);
-      });
-      this.touch();
-    });
 
     if (customFetch) {
       this._fetch = customFetch;
@@ -98,27 +114,57 @@ export class SDK extends Subscribable {
       });
     }
 
-    if (signer) {
-      this.changeSigner(signer);
-    }
+    this.changeProvider(provider || ethers.getDefaultProvider()).then(() => {
+      if (signer) {
+        this.changeSigner(signer);
+      }
+    });
   }
 
+  /**
+   * @readonly
+   * @returns {string} - The EVM address of the current signer, lowercase
+   * @memberof SDK
+   */
   get account() {
-    return this._account;
+    return this._account.toLowerCase();
   }
 
+  /**
+   * @returns {string} - The shortened account name
+   * @see {@link SDK#_setName}
+   * @memberof SDK
+   */
   get accountName() {
     return this._accountName;
   }
 
+  /**
+   * @readonly
+   * @returns {Object} - An object where wallet addresses are keys and BigNumber are values
+   * @see {@link SDK#balanceOf}
+   * @see {@link SDK#_updateBalances}
+   * @memberof SDK
+   */
   get balances() {
     return this._balances;
   }
 
+  /**
+   * @readonly
+   * @returns {number} - The current blockNumber of the EVM chain provided by {@link SDK#provider}
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getBlockNumber}
+   * @memberof SDK
+   */
   get blockNumber() {
     return this._blockNumber;
   }
 
+  /**
+   * @readonly
+   * @returns {ExchangeFactory} - An instance of {@link ExchangeFactory} for the current EVM chain
+   * @memberof SDK
+   */
   get exchangeFactory() {
     if (this._exchangeFactory) {
       return this._exchangeFactory;
@@ -136,10 +182,20 @@ export class SDK extends Subscribable {
     return this._exchangeFactory;
   }
 
+  /**
+   * @readonly
+   * @returns {fetch} - An implementation of the Fetch API
+   * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API}
+   * @memberof SDK
+   */
   get fetch() {
     return this._fetch;
   }
 
+  /**
+   * @deprecated since version 0.0.8 in favor of {@link SDK#accountName}
+   * @memberof SDK
+   */
   get name() {
     console.warn(
       'WARNING: sdk.name is deprecated and will be removed in a future version. Please use sdk.accountName.',
@@ -147,26 +203,60 @@ export class SDK extends Subscribable {
     return this.accountName;
   }
 
+  /**
+   * @readonly
+   * @returns {string} - A hex string representation of the current network id
+   * @memberof SDK
+   */
   get networkHex() {
     return toHex(this.networkId);
   }
 
+  /**
+   * @readonly
+   * @returns {number} - Returns the network id connected EVM chain
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getNetwork}
+   * @memberof SDK
+   */
   get networkId() {
     return this._networkId || this.env.networkId;
   }
 
+  /**
+   * @readonly
+   * @returns {number} - Returns the current network name of the connected EVM chain
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getNetwork}
+   * @memberof SDK
+   */
   get networkName() {
     return this._networkName || this.env.networkName;
   }
 
+  /**
+   * @readonly
+   * @returns {ethers.providers.Provider} - Returns the current ethers provider
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/}
+   * @memberof SDK
+   */
   get provider() {
     return this.signer ? this.signer.provider : this._provider;
   }
 
+  /**
+   * @readonly
+   * @returns {ethers.Signer} - Returns the current ethers signer
+   * @see {@link https://docs.ethers.io/v5/api/signer/}
+   * @memberof SDK
+   */
   get signer() {
     return this._signer;
   }
 
+  /**
+   * @readonly
+   * @returns {StakingPools} - An instance of {@link StakingPools} for the current EVM chain
+   * @memberof SDK
+   */
   get stakingPools() {
     if (this._stakingPools) {
       return this._stakingPools;
@@ -184,10 +274,25 @@ export class SDK extends Subscribable {
     return this._stakingPools;
   }
 
+  /**
+   * @readonly
+   * @returns {StorageAdapter} - The configured {@link StorageAdapter},
+   * @default An instance of {@link LocalStorageAdapter}
+   * @memberof SDK
+   */
   get storageAdapter() {
     return this._storageAdapter;
   }
 
+  /**
+   * Fetches the ETH / AVAX / primary token balance of the requested EVM address and keeps it up to
+   * date on a block by block basis.
+   *
+   * @param {string} address - The EVM address of the account whose balance is being tracked
+   * @returns {BigNumber} - The current balance of the account
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getBalance}
+   * @memberof SDK
+   */
   async balanceOf(address) {
     validateIsAddress(address);
     const key = address.toLowerCase();
@@ -202,7 +307,43 @@ export class SDK extends Subscribable {
     }
   }
 
+  /**
+   * Changes the default / readonly provider and begins to listen for block updates.
+   *
+   * @param {ethers.providers.Provider} provider
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/}
+   * @memberof SDK
+   */
+  async changeProvider(provider) {
+    this._stopListeningToChain();
+
+    const network = await provider.getNetwork();
+
+    this._provider = provider;
+    this._networkId = network.chainId;
+    this._networkName = network.name;
+
+    delete this._exchangeFactory;
+    delete this._stakingPools;
+
+    await this._listenToChain().catch((errors) => {
+      console.error('@elasticswap/sdk: error switching networks', errors);
+    });
+
+    this.touch();
+  }
+
+  /**
+   * Changes the signer and begins to listen for block updates. Also triggers {@link SDK#balanceOf}
+   * for the signer's address.
+   *
+   * @param {ethers.Signer} signer
+   * @see {@link https://docs.ethers.io/v5/api/signer/}
+   * @memberof SDK
+   */
   async changeSigner(signer) {
+    this._stopListeningToChain();
+
     const [newAccount, network] = await Promise.all([
       signer.getAddress(),
       signer.provider.getNetwork(),
@@ -217,10 +358,27 @@ export class SDK extends Subscribable {
     delete this._stakingPools;
 
     this.balanceOf(this.account);
-    await this.setName();
+
+    await Promise.all([this._listenToChain(), this._setName()]).catch(
+      (errors) => {
+        console.error('@elasticswap/sdk: error switching networks', errors);
+      },
+    );
     this.touch();
   }
 
+  /**
+   * Generates a contract object using the provider or signer. {@link SDK#provider} will be used if
+   * the contract is readonly or if a signer is not available.
+   *
+   * @param {Object} config - The configuration of the contract
+   * @param {Object[]} abi - The contract ABI
+   * @param {string} config.address - The EVM address of the contract
+   * @param {boolean} config.readonly=false - Whether the contract is readonly (optional)
+   * @returns {ethers.Contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @memberof SDK
+   */
   contract({ abi, address, readonly = false }) {
     const { provider, signer } = this;
 
@@ -233,18 +391,31 @@ export class SDK extends Subscribable {
     return contract;
   }
 
+  /**
+   * Removes the signer and updates the listeners to use the default {@link SDK#provider}
+   * @memberof SDK
+   */
   async disconnectSigner() {
     delete this._account;
     delete this._accountName;
     delete this._exchangeFactory;
     delete this._signer;
     delete this._stakingPools;
-    this.touch();
+
+    this.changeProvider(this.provider); // in case the provider and signer are on different networks
   }
 
   /**
-   * Hash - transaction hash
-   * Object - look at block native  notify -https://docs.blocknative.com/notify#notification
+   * Uses bnc-notify to provide clean UI notifcations. Only possible in a browser environment.
+   *
+   * @todo Mimic {@link https://docs.blocknative.com/notify#transaction} for non-Ethereum chains.
+   *
+   * @param {Object} config - The configuration for the notification
+   * @param {string} config.hash - The EVM transaction hash to monitor (optional)
+   * @param {Object} config.obj - A notification configuration object
+   * @see {@link https://docs.blocknative.com/notify#transaction}
+   * @see {@link https://docs.blocknative.com/notify#notification}
+   * @memberof SDK
    */
   notify({ hash, obj }) {
     if (!this._notify) {
@@ -260,6 +431,15 @@ export class SDK extends Subscribable {
     }
   }
 
+  /**
+   * Sends ETH / AVAX / whatever the primary token is of the current chain.
+   *
+   * @param {string} recipient - The EVM address or ENS name of the recipient
+   * @param {BigNumber} value - The amount of ETH / AVAX / primary token to send.
+   * @returns {ethers.TransactionResponse}
+   * @see {@link https://docs.ethers.io/v5/api/providers/types/#providers-TransactionResponse}
+   * @memberof SDK
+   */
   async sendETH(recipient, value) {
     let to = recipient;
     if (!ethers.utils.isAddress(to)) {
@@ -279,6 +459,13 @@ export class SDK extends Subscribable {
     return tx;
   }
 
+  /**
+   * Checks if the address or ENS name is valid.
+   *
+   * @param {string} address - The address or ENS name to check
+   * @returns {boolean} true if the address is valid, false otherwise
+   * @memberof SDK
+   */
   async isValidETHAddress(address) {
     if (!address) {
       return false;
@@ -301,7 +488,33 @@ export class SDK extends Subscribable {
     return true;
   }
 
-  async setName() {
+  // subscribes to block updates and queues balance checks for the current provider
+  async _listenToChain() {
+    this._updateBalances(false).catch((e) => {
+      console.warn('Failed to update balances', e.message);
+    });
+
+    this._blockNumber = await this.provider.getBlockNumber();
+
+    this.provider.on('block', (blockNumber) => {
+      this._blockNumber = blockNumber;
+      this._updateBalances().catch((e) => {
+        console.warn('Failed to update balances', e.message);
+      });
+      this.touch();
+    });
+  }
+
+  // gets and sets the network information for the current provider
+  async _loadNetwork() {
+    const { chainId, name } = this.provider.getNetwork();
+    this._networkId = chainId;
+    this._networkName = name;
+  }
+
+  // looks up the ENS name of the current signer's account, defaulting to a truncated version of
+  // their address.
+  async _setName() {
     if (this.account) {
       this._accountName = shortenAddress(this.account);
       try {
@@ -315,20 +528,30 @@ export class SDK extends Subscribable {
     }
   }
 
-  async updateBalances() {
+  // Removes all listeners from the current provider. Used when changing providers or signers to
+  // prevent O(n) query issues.
+  _stopListeningToChain() {
+    if (this.provider) {
+      this.provider.removeAllListeners();
+    }
+  }
+
+  // Gets the current balance for all tracked accounts from the chain and updates the local cache.
+  // If touch is false, a subscriber update will not be triggered.
+  async _updateBalances(touch = true) {
     const balances = await Promise.all(
       this._balancesToTrack.map((address) => this.provider.getBalance(address)),
     );
+
     for (let i = 0; i < balances.length; i += 1) {
       this._balances[this._balancesToTrack[i]] = toBigNumber(balances[i], 18);
     }
-    this.touch();
-  }
 
-  async _loadNetwork() {
-    const { chainId, name } = this.provider.getNetwork();
-    this._networkId = chainId;
-    this._networkName = name;
+    if (touch) {
+      this.touch();
+    }
+
+    return this.balances;
   }
 }
 
