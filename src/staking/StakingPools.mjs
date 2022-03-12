@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import StakingPoolsContract from '../abi/StakingPools.json';
 import Base from '../Base.mjs';
 
@@ -140,8 +141,19 @@ export default class StakingPools extends Base {
    * @memberof StakingPools
    */
   async getAPY(poolId, overrides = {}) {
-    // TODO: make this compound daily
-    return this.getAPR(poolId, overrides);
+    const [apr, poolToken] = await Promise.all([
+      this.getAPR(poolId, overrides),
+      this.getPoolToken(),
+    ]);
+
+    // Since gas is cheap on AVAX, we assume users will compound their rewards daily. If this is not
+    // TIC token single staking pool, the APY is the APR.
+    // Credit: https://www.aprtoapy.com/
+    if (poolToken === this.sdk.contractAddress('TicToken')) {
+      return apr.dividedBy(365).plus(1).exponentiatedBy(365).minus(1);
+    }
+
+    return apr;
   }
 
   /**
@@ -161,10 +173,39 @@ export default class StakingPools extends Base {
 
     // strategies for getting apr
     // token = tic, 1 to 1
-    // token = tic pair, 1 to 2
-    // token = other, price to price (TODO)
+    if (poolToken === this.sdk.contractAddress('TicToken')) {
+      return poolRate.multipliedBy(31557600).dividedBy(totalDeposited);
+    }
 
-    return poolRate.multipliedBy(31557600).dividedBy();
+    // time token Pre-seed
+    // assumptions:
+    //   ETH = $4,358.59 (Dec 7th, 2021)
+    //   TIC = $10 (launch price)
+    //   For better accuracy, the current price of TIC should be used (div 10, mul current price)
+    if (poolToken === this.sdk.contractAddress('TimeTokenPreSeed')) {
+      return poolRate
+        .multipliedBy(31557600)
+        .dividedBy(totalDeposited)
+        .multipliedBy('435.859');
+    }
+
+    // time token DAO
+    if (poolToken === this.sdk.contractAddress('TimeTokenDAO')) {
+      return BigNumber(1); // 100% because the DAO doesn't really have an APR / APY
+    }
+
+    // time token Team
+    if (poolToken === this.sdk.contractAddress('TimeTokenTeam')) {
+      return BigNumber(1); // 100% because the Team doesn't really have an APR / APY
+    }
+
+    // token = tic pair, 1 to 2
+    // Every other rewarded pool is assumed to be half TIC and half something else of equal value
+    // Ergo each token deposited represents 2x TIC
+    // Any non-TIC pool token should be adjusted (div 2*TIC price, mul actual price)
+    return poolRate
+      .multipliedBy(31557600)
+      .dividedBy(totalDeposited.multipliedBy(2));
   }
 
   /**

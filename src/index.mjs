@@ -88,8 +88,6 @@ export class SDK extends Subscribable {
 
     this.env = env;
 
-    this._loadNetwork();
-
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
     this._storageAdapter = storageAdapter || new LocalStorageAdapter();
 
@@ -123,11 +121,13 @@ export class SDK extends Subscribable {
 
   /**
    * @readonly
-   * @returns {string} - The EVM address of the current signer, lowercase
+   * @returns {string|undefined} - The EVM address of the current signer, lowercase
    * @memberof SDK
    */
   get account() {
-    return this._account.toLowerCase();
+    if (this._account) {
+      return this._account.toLowerCase();
+    }
   }
 
   /**
@@ -173,7 +173,7 @@ export class SDK extends Subscribable {
     try {
       this._exchangeFactory = new ExchangeFactory(
         this,
-        this.env.contracts[this.networkHex].ExchangeFactory.address,
+        this.contractAddress('ExchangeFactory'),
       );
     } catch (e) {
       console.error('Unable to load exchangeFactory:', e);
@@ -265,7 +265,7 @@ export class SDK extends Subscribable {
     try {
       this._stakingPools = new StakingPools(
         this,
-        this.env.contracts[this.networkHex].StakingPools.address,
+        this.contractAddress('StakingPools'),
       );
     } catch (e) {
       console.error('Unable to load stakingPools:', e);
@@ -389,6 +389,21 @@ export class SDK extends Subscribable {
     }).connect(connection);
 
     return contract;
+  }
+
+  /**
+   * Looks up the address of the named contract on the current chain. Addresses are derived from the
+   * options.env.contracts object passed when the SDK was created.
+   *
+   * @param {string} contractName
+   * @returns {string|undefined} - The deployed address (lowercase) of the contract
+   */
+  contractAddress(contractName) {
+    const deployedContract = this.env.contracts[this.networkHex][contractName];
+
+    if (deployedContract) {
+      return deployedContract.address.toLowerCase();
+    }
   }
 
   /**
