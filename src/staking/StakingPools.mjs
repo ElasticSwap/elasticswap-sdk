@@ -2,6 +2,9 @@ import { BigNumber } from 'ethers';
 import StakingPoolsContract from '../abi/StakingPools.json';
 import Base from '../Base.mjs';
 
+// 365.25 * 24 * 60 * 60
+const SECONDS_PER_YEAR = 31557600;
+
 /**
  * Provides a wrapping class for the StakingPools contract.
  *
@@ -174,7 +177,7 @@ export default class StakingPools extends Base {
     // strategies for getting apr
     // token = tic, 1 to 1
     if (poolToken === this.sdk.contractAddress('TicToken')) {
-      return poolRate.multipliedBy(31557600).dividedBy(totalDeposited);
+      return poolRate.multipliedBy(SECONDS_PER_YEAR).dividedBy(totalDeposited);
     }
 
     // time token Pre-seed

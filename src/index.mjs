@@ -125,9 +125,7 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   get account() {
-    if (this._account) {
-      return this._account.toLowerCase();
-    }
+    return this._account ? this._account.toLowerCase() : undefined;
   }
 
   /**
