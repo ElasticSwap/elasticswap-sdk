@@ -279,6 +279,13 @@ export const shortenAddress = (address, digits = 4) => {
   return `${a}...${b}`;
 };
 
+export const shortenHash = (address, digits = 4) => {
+  const a = address.substring(0, digits + 2);
+  const b = address.substring(66 - digits);
+
+  return `${a}...${b}`;
+};
+
 export const truncate = (str, opts = {}) => {
   if (!str) {
     return '';

@@ -18,6 +18,7 @@ import {
   amountFormatter,
   round,
   shortenAddress,
+  shortenHash,
   swapBigNumber,
   toBigNumber,
   toEthersBigNumber,
@@ -33,6 +34,7 @@ export const utils = {
   amountFormatter,
   round,
   shortenAddress,
+  shortenHash,
   swapBigNumber,
   toBigNumber,
   toEthersBigNumber,
@@ -464,13 +466,53 @@ export class SDK extends Subscribable {
    * @see {@link https://docs.blocknative.com/notify#notification}
    * @memberof SDK
    */
-  notify({ hash, obj }) {
+  notify({ hash, obj, wait }) {
+    console.log('hash', hash, this._notify);
+
     if (!this._notify) {
       return;
     }
 
     if (hash) {
-      return this._notify.hash(hash);
+      if (this.networkId !== 1) {
+        const { update, dismiss } = this._notify.notification({
+          autoDismiss: 0,
+          eventCode: 'TransactionSubmitted',
+          type: 'pending',
+          message: `Transaction ${shortenHash(hash)} is processing...`,
+          onclick: () => dismiss(),
+        });
+
+        const txSuccess = (finalHash) => {
+          update({
+            autoDismiss: 2000,
+            type: 'success',
+            message: `Transaction ${shortenHash(finalHash)} succeeded.`,
+          });
+        }
+
+        const handleError = ({ reason, replacement }) => {
+          if (reason && replacement && replacement.hash) {
+            update({
+              message: `Transaction ${shortenHash(replacement.hash)} is processing...`
+            });
+
+            wait(1).then((() => txSuccess(replacement.hash))).catch((err) => handleError(err));
+          } else {
+            update({
+              autoDismiss: 2000,
+              type: 'error',
+              message: `Transaction ${shortenHash(replacement.hash)} failed.`
+            });
+          }
+        }
+
+        wait(1).then(() => txSuccess(hash)).catch((err) => handleError(err));
+
+        return { update, dismiss };
+      } else {
+        return this._notify.hash(hash);
+      }
     }
 
     if (obj) {
