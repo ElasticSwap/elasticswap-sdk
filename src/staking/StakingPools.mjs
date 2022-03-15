@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import StakingPoolsContract from '../abi/StakingPools.json';
 import Base from '../Base.mjs';
 
@@ -146,8 +145,13 @@ export default class StakingPools extends Base {
   async getAPY(poolId, overrides = {}) {
     const [apr, poolToken] = await Promise.all([
       this.getAPR(poolId, overrides),
-      this.getPoolToken(),
+      this.getPoolToken(poolId, overrides),
     ]);
+
+    // if APR is zero, so is APY
+    if (apr.isZero()) {
+      return apr;
+    }
 
     // Since gas is cheap on AVAX, we assume users will compound their rewards daily. If this is not
     // TIC token single staking pool, the APY is the APR.
@@ -174,6 +178,10 @@ export default class StakingPools extends Base {
       this.getPoolToken(poolId, overrides),
     ]);
 
+    if (poolRate.isZero()) {
+      return this.toBigNumber(0);
+    }
+
     // strategies for getting apr
     // token = tic, 1 to 1
     if (poolToken === this.sdk.contractAddress('TicToken')) {
@@ -187,19 +195,19 @@ export default class StakingPools extends Base {
     //   For better accuracy, the current price of TIC should be used (div 10, mul current price)
     if (poolToken === this.sdk.contractAddress('TimeTokenPreSeed')) {
       return poolRate
-        .multipliedBy(31557600)
+        .multipliedBy(SECONDS_PER_YEAR)
         .dividedBy(totalDeposited)
         .multipliedBy('435.859');
     }
 
     // time token DAO
     if (poolToken === this.sdk.contractAddress('TimeTokenDAO')) {
-      return BigNumber(1); // 100% because the DAO doesn't really have an APR / APY
+      return this.toBigNumber(1); // 100% because the DAO doesn't really have an APR / APY
     }
 
     // time token Team
     if (poolToken === this.sdk.contractAddress('TimeTokenTeam')) {
-      return BigNumber(1); // 100% because the Team doesn't really have an APR / APY
+      return this.toBigNumber(1); // 100% because the Team doesn't really have an APR / APY
     }
 
     // token = tic pair, 1 to 2
@@ -207,7 +215,7 @@ export default class StakingPools extends Base {
     // Ergo each token deposited represents 2x TIC
     // Any non-TIC pool token should be adjusted (div 2*TIC price, mul actual price)
     return poolRate
-      .multipliedBy(31557600)
+      .multipliedBy(SECONDS_PER_YEAR)
       .dividedBy(totalDeposited.multipliedBy(2));
   }
 
@@ -370,8 +378,8 @@ export default class StakingPools extends Base {
    * @returns {Promise<number>}
    * @memberof StakingPools
    */
-  async totalRewardRate(overrides = {}) {
-    const rate = await this.contract.totalRewardRate(
+  async totalRewardWeight(overrides = {}) {
+    const rate = await this.contract.totalRewardWeight(
       this.sanitizeOverrides(overrides, true),
     );
 

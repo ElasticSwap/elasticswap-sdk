@@ -86,6 +86,8 @@ export class SDK extends Subscribable {
   constructor({ customFetch, env, provider, signer, storageAdapter }) {
     super();
 
+    this._initialized = false;
+
     this.env = env;
 
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
@@ -105,16 +107,13 @@ export class SDK extends Subscribable {
       );
     }
 
-    if (this.env.blocknative) {
-      this._notify = Notify(this.env.blocknative);
-      this._notify.config({
-        darkMode: true,
-      });
-    }
-
     this.changeProvider(provider || ethers.getDefaultProvider()).then(() => {
       if (signer) {
-        this.changeSigner(signer);
+        this.changeSigner(signer).then(() => {
+          this._initialized = true;
+        });
+      } else {
+        this._initialized = true;
       }
     });
   }
@@ -191,12 +190,22 @@ export class SDK extends Subscribable {
   }
 
   /**
+   * @readonly
+   * @returns {boolean} - true after the provider and (if applicable) signer have been loaded
+   * @memberof SDK
+   */
+  get initialized() {
+    return this._initialized;
+  }
+
+  /**
    * @deprecated since version 0.0.8 in favor of {@link SDK#accountName}
    * @memberof SDK
    */
   get name() {
     console.warn(
-      'WARNING: sdk.name is deprecated and will be removed in a future version. Please use sdk.accountName.',
+      'WARNING: sdk.name is deprecated and will be removed in a future version.' +
+        'Please use sdk.accountName.',
     );
     return this.accountName;
   }
@@ -286,6 +295,26 @@ export class SDK extends Subscribable {
    * Fetches the ETH / AVAX / primary token balance of the requested EVM address and keeps it up to
    * date on a block by block basis.
    *
+   * @returns {Promise<boolean>} - true once initialized
+   * @see {@link SDK#initialized}
+   * @memberof SDK
+   */
+  awaitInitialized() {
+    return new Promise((resolve, reject) => {
+      if (!this.initialized) {
+        // wait 50 ms and check again
+        setTimeout(() => this.awaitInitialized().then(resolve, reject), 50);
+        return;
+      }
+
+      resolve(this.initialized);
+    });
+  }
+
+  /**
+   * Fetches the ETH / AVAX / primary token balance of the requested EVM address and keeps it up to
+   * date on a block by block basis.
+   *
    * @param {string} address - The EVM address of the account whose balance is being tracked
    * @returns {BigNumber} - The current balance of the account
    * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getBalance}
@@ -328,6 +357,8 @@ export class SDK extends Subscribable {
       console.error('@elasticswap/sdk: error switching networks', errors);
     });
 
+    this._configureNotify();
+
     this.touch();
   }
 
@@ -362,6 +393,9 @@ export class SDK extends Subscribable {
         console.error('@elasticswap/sdk: error switching networks', errors);
       },
     );
+
+    this._configureNotify();
+
     this.touch();
   }
 
@@ -499,6 +533,21 @@ export class SDK extends Subscribable {
       return false;
     }
     return true;
+  }
+
+  // sets up blocknative notify
+  _configureNotify() {
+    const { env, networkId } = this;
+    const { blocknative } = env;
+
+    if (blocknative) {
+      delete this._notify;
+
+      this._notify = Notify({ ...blocknative, networkId });
+      this._notify.config({
+        darkMode: true,
+      });
+    }
   }
 
   // subscribes to block updates and queues balance checks for the current provider
