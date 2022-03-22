@@ -489,25 +489,31 @@ export class SDK extends Subscribable {
             type: 'success',
             message: `Transaction ${shortenHash(finalHash)} succeeded.`,
           });
-        }
+        };
 
         const handleError = ({ reason, replacement }) => {
           if (reason && replacement && replacement.hash) {
             update({
-              message: `Transaction ${shortenHash(replacement.hash)} is processing...`
+              message: `Transaction ${shortenHash(
+                replacement.hash,
+              )} is processing...`,
             });
 
-            wait(1).then((() => txSuccess(replacement.hash))).catch((err) => handleError(err));
+            wait(1)
+              .then(() => txSuccess(replacement.hash))
+              .catch((err) => handleError(err));
           } else {
             update({
               autoDismiss: 2000,
               type: 'error',
-              message: `Transaction ${shortenHash(replacement.hash)} failed.`
+              message: `Transaction ${shortenHash(replacement.hash)} failed.`,
             });
           }
-        }
+        };
 
-        wait(1).then(() => txSuccess(hash)).catch((err) => handleError(err));
+        wait(1)
+          .then(() => txSuccess(hash))
+          .catch((err) => handleError(err));
 
         return { update, dismiss };
       } else {

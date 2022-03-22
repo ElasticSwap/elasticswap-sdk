@@ -1,6 +1,6 @@
 {
   "name": "@elasticswap/sdk",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Official SDK for ElasticSwap",
   "main": "dist/index.js",
   "repository": "https://github.com/elasticswap/elasticswap-sdk",
@@ -48,7 +48,7 @@
     "webpack-cli": "^4.9.1"
   },
   "dependencies": {
-    "@elasticswap/elasticswap": "^0.0.5",
+    "@elasticswap/elasticswap": "0.0.7",
     "bignumber.js": "^9.0.1",
     "bnc-notify": "^1.9.1",
     "ethers": "^5.5.1",
