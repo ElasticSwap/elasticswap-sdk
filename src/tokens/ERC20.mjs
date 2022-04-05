@@ -1,5 +1,6 @@
 import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' assert { type: 'json' };
 import Base from '../Base.mjs';
+import { isPOJO } from '../utils/typeChecks.mjs';
 import { validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
 
 const SUPPLY_EVENTS = ['AddLiquidity', 'Rebase', 'RemoveLiquidity', 'Swap', 'Transfer'];
@@ -23,8 +24,8 @@ export default class ERC20 extends Base {
     validateIsAddress(address);
     this._address = address.toLowerCase();
 
-    if (!balancesByContract[address]) {
-      balancesByContract[address] = {};
+    if (!balancesByContract[this._address]) {
+      balancesByContract[this._address] = {};
     }
 
     this._monitorForEvents();
@@ -56,6 +57,16 @@ export default class ERC20 extends Base {
    */
   get address() {
     return this._address;
+  }
+
+  /**
+   * Returns all of the tracked balances
+   *
+   * @readonly
+   * @memberof ERC20
+   */
+  get balances() {
+    return balancesByContract[this.address];
   }
 
   /**
@@ -98,7 +109,7 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async decimals(overrides) {
-    if (Object.isObject(overrides)) {
+    if (isPOJO(overrides)) {
       return this.toNumber(
         await this.readonlyContract.decimals(this.sanitizeOverrides(overrides, true)),
       );
@@ -109,6 +120,7 @@ export default class ERC20 extends Base {
     }
 
     this._decimals = this.toNumber(await this.readonlyContract.decimals());
+    this.touch();
     return this._decimals;
   }
 
@@ -121,7 +133,7 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async name(overrides) {
-    if (Object.isObject(overrides)) {
+    if (isPOJO(overrides)) {
       return this.readonlyContract.name(this.sanitizeOverrides(overrides, true));
     }
 
@@ -130,6 +142,7 @@ export default class ERC20 extends Base {
     }
 
     this._name = await this.readonlyContract.name();
+    this.touch();
     return this._name;
   }
 
@@ -142,7 +155,7 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async symbol(overrides) {
-    if (Object.isObject(overrides)) {
+    if (isPOJO(overrides)) {
       return this.readonlyContract.symbol(this.sanitizeOverrides(overrides, true));
     }
 
@@ -151,6 +164,7 @@ export default class ERC20 extends Base {
     }
 
     this._symbol = await this.readonlyContract.symbol();
+    this.touch();
     return this._symbol;
   }
 
@@ -164,7 +178,7 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async totalSupply(overrides) {
-    if (Object.isObject(overrides)) {
+    if (isPOJO(overrides)) {
       const [decimals, totalSupply] = await Promise.all([
         this.decimals(this.sanitizeOverrides(overrides, true)),
         this.readonlyContract.totalSupply(this.sanitizeOverrides(overrides, true)),
@@ -182,7 +196,9 @@ export default class ERC20 extends Base {
       this.readonlyContract.totalSupply(),
     ]);
 
-    return this.toBigNumber(totalSupply, decimals);
+    this._totalSupply = this.toBigNumber(totalSupply, decimals);
+    this.touch();
+    return this._totalSupply;
   }
 
   /**
@@ -200,7 +216,7 @@ export default class ERC20 extends Base {
 
     const addressLower = address.toLowerCase();
 
-    if (Object.isObject(overrides)) {
+    if (isPOJO(overrides)) {
       const [decimals, balance] = await Promise.all([
         this.decimals(this.sanitizeOverrides(overrides, true)),
         this.readonlyContract.balanceOf(addressLower, this.sanitizeOverrides(overrides, true)),
@@ -219,6 +235,7 @@ export default class ERC20 extends Base {
     ]);
 
     balancesByContract[this.address][addressLower] = this.toBigNumber(balance, decimals);
+    this.touch();
     return balancesByContract[this.address][addressLower];
   }
 
@@ -349,7 +366,7 @@ export default class ERC20 extends Base {
       // grab a new readonly contract instance to add listeners to
       cachedContracts[this.address] = this.readonlyContract;
 
-      const handler = this._handleSupplyEvent.bind(this);
+      const handler = (event) => this._handleSupplyEvent(event);
 
       SUPPLY_EVENTS.forEach((event) => {
         // if the contract supports this event
@@ -364,5 +381,6 @@ export default class ERC20 extends Base {
   async _updateBalance(address) {
     // force update with blank overrides
     balancesByContract[this.address][address.toLowerCase()] = this.balanceOf(address, {});
+    this.touch();
   }
 }

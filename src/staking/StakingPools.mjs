@@ -226,7 +226,6 @@ export default class StakingPools extends Base {
     const ticStaked = lpTicBalance.multipliedBy(percentOfLPStaked);
     const valueStaked = ticStaked.multipliedBy(2); // 1/2 tic and 1/2 USDC
 
-    console.log('valueStaked', valueStaked.toString());
     return poolRate.multipliedBy(SECONDS_PER_YEAR).dividedBy(valueStaked);
   }
 

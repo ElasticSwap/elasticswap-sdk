@@ -513,7 +513,8 @@ export class SDK extends Subscribable {
    * options.env.contracts object passed when the SDK was created.
    *
    * @param {string} contractName
-   * @returns {string|undefined} - The deployed address (lowercase) of the contract
+   * @return {string|undefined} - The deployed address (lowercase) of the contract
+   * @memberof SDK
    */
   contractAddress(contractName) {
     const deployedContract = this.env.contracts[this.networkHex][contractName];
@@ -535,6 +536,18 @@ export class SDK extends Subscribable {
     delete this._stakingPools;
 
     this.changeProvider(this.provider); // in case the provider and signer are on different networks
+  }
+
+  /**
+   * Instantiates an ERC20 object for the given address.
+   *
+   * @param {string} address - The contract address
+   * @return {ERC20} - An ERC20 instance representing the contract
+   * @memberof SDK
+   */
+  erc20(address) {
+    validateIsAddress(address);
+    return new ERC20(this, address);
   }
 
   /**

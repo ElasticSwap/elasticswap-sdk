@@ -1,5 +1,5 @@
 import BigNumber from 'bignumber.js';
-import isPlainObject from 'is-plain-object';
+import { isPlainObject } from 'is-plain-object';
 import { ethers } from 'ethers';
 
 // Core

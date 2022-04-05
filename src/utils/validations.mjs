@@ -190,7 +190,7 @@ export const validateIsString = (thing, options = {}) => {
  * @return {boolean}
  */
 export const validateIsAddress = (thing, options = {}) => {
-  const defaultMessage = 'not an Ethereum address';
+  const defaultMessage = `not an Ethereum address ${thing}`;
   return validate(isAddress(thing), {
     ...options,
     message: options.message || defaultMessage,
