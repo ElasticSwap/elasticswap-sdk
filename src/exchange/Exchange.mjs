@@ -1,6 +1,5 @@
 import ExchangeSolidity from '@elasticswap/elasticswap/artifacts/src/contracts/Exchange.sol/Exchange.json' assert { type: 'json' };
 import ERC20 from '../tokens/ERC20.mjs';
-import Base from '../Base.mjs';
 import ErrorHandling from '../ErrorHandling.mjs';
 import {
   calculateBaseTokenQty,
@@ -14,15 +13,13 @@ import {
 } from '../utils/mathLib.mjs';
 import { toBigNumber, toEthersBigNumber } from '../utils/utils.mjs';
 
-export default class Exchange extends Base {
+export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
-    super(sdk);
-    this._exchangeAddress = exchangeAddress;
+    super(sdk, exchangeAddress);
     this._baseTokenAddress = baseTokenAddress;
     this._quoteTokenAddress = quoteTokenAddress;
     this._baseToken = new ERC20(sdk, baseTokenAddress);
     this._quoteToken = new ERC20(sdk, quoteTokenAddress);
-    this._lpToken = new ERC20(sdk, exchangeAddress);
     this._contract = sdk.contract({
       abi: ExchangeSolidity.abi,
       address: exchangeAddress,
@@ -45,8 +42,8 @@ export default class Exchange extends Base {
     });
   }
 
-  get contract() {
-    return this._contract;
+  get exchangeAddress() {
+    return this.address;
   }
 
   get readonlyContract() {
@@ -55,10 +52,6 @@ export default class Exchange extends Base {
 
   get ownerAddress() {
     return this._ownerAddress;
-  }
-
-  get address() {
-    return this._exchangeAddress;
   }
 
   get baseTokenAddress() {
@@ -75,10 +68,6 @@ export default class Exchange extends Base {
 
   get quoteToken() {
     return this._quoteToken;
-  }
-
-  get lpToken() {
-    return this._lpToken;
   }
 
   get baseTokenBalance() {
@@ -181,7 +170,7 @@ export default class Exchange extends Base {
     const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
     const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
     const internalBalances = await this.contract.internalBalances();
-    const totalSupplyOfLiquidityTokens = await this._lpToken.totalSupply();
+    const totalSupplyOfLiquidityTokens = await this.totalSupply();
 
     return calculateLPTokenAmount(
       quoteTokenAmount,
@@ -235,7 +224,7 @@ export default class Exchange extends Base {
   async calculateTokenAmountsFromLPTokens(lpTokenQtyToRedeem, slippagePercent) {
     const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
     const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
-    const totalLPTokenSupply = await this._lpToken.totalSupply();
+    const totalLPTokenSupply = await this.totalSupply();
 
     return calculateTokenAmountsFromLPTokens(
       lpTokenQtyToRedeem,
@@ -271,7 +260,7 @@ export default class Exchange extends Base {
   }
 
   async calculateShareOfPool(quoteTokenAmount, baseTokenAmount, slippage) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(await this._lpToken.totalSupply());
+    const totalSupplyOfLiquidityTokens = toBigNumber(await this.totalSupply());
     if (totalSupplyOfLiquidityTokens.eq(toBigNumber(0))) {
       return toBigNumber(1); // 100% of pool!
     }
@@ -285,7 +274,7 @@ export default class Exchange extends Base {
   }
 
   async calculateShareOfPoolProvided(lpAmount) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(await this._lpToken.totalSupply());
+    const totalSupplyOfLiquidityTokens = toBigNumber(await this.totalSupply());
     if (totalSupplyOfLiquidityTokens.eq(lpAmount)) {
       return toBigNumber(1); // 100% of pool!
     }

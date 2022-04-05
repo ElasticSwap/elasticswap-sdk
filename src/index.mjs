@@ -141,8 +141,11 @@ export class SDK extends Subscribable {
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
     this._storageAdapter = storageAdapter || new LocalStorageAdapter();
 
+    // tracks all the addresses we interact with under the current provider for filtering reasons
+    this._addresses = new Set();
+
+    // ETH / AVAX / native token balances
     this._balances = {};
-    this._balancesToTrack = [];
 
     if (customFetch) {
       this._fetch = customFetch;
@@ -345,7 +348,9 @@ export class SDK extends Subscribable {
     }
 
     try {
-      this._stakingPools = new StakingPools(this, this.contractAddress('StakingPools'));
+      const stakingPoolsAddress = this.contractAddress('StakingPools');
+      this._stakingPools = new StakingPools(this, stakingPoolsAddress);
+      this.trackAddress(stakingPoolsAddress);
     } catch (e) {
       console.error('Unable to load stakingPools:', e);
     }
@@ -361,6 +366,15 @@ export class SDK extends Subscribable {
    */
   get storageAdapter() {
     return this._storageAdapter;
+  }
+
+  /**
+   * @readonly
+   * @returns {Array<string>} - An array of addresses we track,
+   * @memberof SDK
+   */
+  get trackedAddresses() {
+    return this._addresses.values();
   }
 
   /**
@@ -395,15 +409,13 @@ export class SDK extends Subscribable {
   async balanceOf(address) {
     validateIsAddress(address);
     const key = address.toLowerCase();
+    this.trackAddress(key);
 
     if (this._balances[key]) {
       return this._balances[key];
     }
     this._balances[key] = toBigNumber(await this.provider.getBalance(key), 18);
     this.touch();
-    if (!this._balancesToTrack.includes(key)) {
-      this._balancesToTrack.push(key);
-    }
   }
 
   /**
@@ -484,6 +496,8 @@ export class SDK extends Subscribable {
    */
   contract({ abi, address, readonly = false }) {
     const { provider, signer } = this;
+
+    this.trackAddress(address);
 
     const connection = readonly ? provider : signer || provider;
     const contract = this._contract({
@@ -602,7 +616,9 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   async sendETH(recipient, value) {
-    let to = recipient;
+    let to = recipient.toLowerCase();
+    validateIsAddress(to);
+    this.trackAddress(to);
     if (!ethers.utils.isAddress(to)) {
       // attempt to to resolve address from ENS
       to = await this.provider.resolveName(to);
@@ -621,6 +637,20 @@ export class SDK extends Subscribable {
   }
 
   /**
+   * returns true is the address is tracked
+   *
+   * @param {string} address
+   * @returns {boolean}
+   */
+  isTrackedAddress(address) {
+    if (isAddress(address)) {
+      return this._addresses.has(address.toLowerCase());
+    }
+
+    return false;
+  }
+
+  /**
    * Checks if the address or ENS name is valid.
    *
    * @param {string} address - The address or ENS name to check
@@ -632,7 +662,7 @@ export class SDK extends Subscribable {
       return false;
     }
 
-    if (ethers.utils.isAddress(address)) {
+    if (isAddress(address)) {
       return true;
     }
 
@@ -647,6 +677,16 @@ export class SDK extends Subscribable {
       return false;
     }
     return true;
+  }
+
+  /**
+   * adds an address to the addresses set
+   *
+   * @param {string} address
+   */
+  trackAddress(address) {
+    validateIsAddress(address);
+    this._addresses.add(address.toLowerCase());
   }
 
   // sets up blocknative notify
@@ -705,8 +745,11 @@ export class SDK extends Subscribable {
   }
 
   // Removes all listeners from the current provider. Used when changing providers or signers to
-  // prevent O(n) query issues.
+  // prevent O(n) query issues. Clears all tracked addresses and balances.
   _stopListeningToChain() {
+    this._addresses = new Set();
+    this._balances = {};
+
     if (this.provider) {
       this.provider.removeAllListeners();
     }
@@ -715,12 +758,14 @@ export class SDK extends Subscribable {
   // Gets the current balance for all tracked accounts from the chain and updates the local cache.
   // If touch is false, a subscriber update will not be triggered.
   async _updateBalances(touch = true) {
+    const addresses = this.trackedAddresses;
+    // TODO: Use multicall
     const balances = await Promise.all(
-      this._balancesToTrack.map((address) => this.provider.getBalance(address)),
+      addresses.map((address) => this.provider.getBalance(address)),
     );
 
     for (let i = 0; i < balances.length; i += 1) {
-      this._balances[this._balancesToTrack[i]] = toBigNumber(balances[i], 18);
+      this._balances[addresses[i]] = toBigNumber(balances[i], 18);
     }
 
     if (touch) {
