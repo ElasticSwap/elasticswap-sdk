@@ -33,9 +33,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   }
 };
 module.exports.tags = ['Exchange'];
-module.exports.dependencies = [
-  'BaseToken',
-  'QuoteToken',
-  'MathLib',
-  'ExchangeFactory',
-];
+module.exports.dependencies = ['BaseToken', 'QuoteToken', 'MathLib', 'ExchangeFactory'];

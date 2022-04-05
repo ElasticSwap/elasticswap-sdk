@@ -12,9 +12,7 @@
 export default class StorageAdapter {
   constructor() {
     if (new.target === StorageAdapter) {
-      throw new TypeError(
-        'Abstract Class Warning: Cannot construct StorageAdapter directly',
-      );
+      throw new TypeError('Abstract Class Warning: Cannot construct StorageAdapter directly');
     }
   }
 
@@ -35,9 +33,7 @@ export default class StorageAdapter {
    * @memberof StorageAdapter
    */
   awaitAvailable() {
-    throw new Error(
-      `${this.constructor.name}.awaitAvailable is not implemented`,
-    );
+    throw new Error(`${this.constructor.name}.awaitAvailable is not implemented`);
   }
 
   /**
@@ -47,9 +43,7 @@ export default class StorageAdapter {
    */
   ensureAvailable() {
     if (!this.available) {
-      throw new Error(
-        `@elasticswap/sdk - ${this.constructor.name}'s adapter is not available`,
-      );
+      throw new Error(`@elasticswap/sdk - ${this.constructor.name}'s adapter is not available`);
     }
   }
 

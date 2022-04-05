@@ -12,8 +12,7 @@ export default class ErrorHandling {
   }
 
   error(errorType, path = 'unknown') {
-    const exception = JSON.parse(JSON.stringify(errorMessages))[this.origin]
-      .exceptions[errorType];
+    const exception = JSON.parse(JSON.stringify(errorMessages))[this.origin].exceptions[errorType];
     return new Error(
       // eslint-disable-next-line max-len
       `Origin: ${this.origin}, Code: ${exception.code}, Message: ${exception.message}, Path: ${path}.`,

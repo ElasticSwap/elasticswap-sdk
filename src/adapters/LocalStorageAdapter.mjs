@@ -21,10 +21,7 @@ export default class LocalStorageAdapter extends StorageAdapter {
       localStorage.removeItem(x);
       return true;
     } catch (e) {
-      console.error(
-        '@elasticswap/sdk - LocalStorageAdapter: localStorage not available',
-        e,
-      );
+      console.error('@elasticswap/sdk - LocalStorageAdapter: localStorage not available', e);
     }
 
     return false;
@@ -42,11 +39,7 @@ export default class LocalStorageAdapter extends StorageAdapter {
       if (this.available) {
         resolve(true);
       } else {
-        reject(
-          new Error(
-            '@elasticswap/sdk - LocalStorageAdapter: localStorage not available',
-          ),
-        );
+        reject(new Error('@elasticswap/sdk - LocalStorageAdapter: localStorage not available'));
       }
     });
   }

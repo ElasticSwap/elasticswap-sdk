@@ -1,11 +1,6 @@
 /* eslint class-methods-use-this: 0 */
 
-import {
-  sanitizeOverrides,
-  toBigNumber,
-  toEthersBigNumber,
-  toNumber,
-} from './utils/utils.mjs';
+import { sanitizeOverrides, toBigNumber, toEthersBigNumber, toNumber } from './utils/utils.mjs';
 import Subscribable from './Subscribable.mjs';
 
 export default class Base extends Subscribable {
@@ -42,8 +37,8 @@ export default class Base extends Subscribable {
     return this[key];
   }
 
-  sanitizeOverrides(requested = {}) {
-    return sanitizeOverrides(requested);
+  sanitizeOverrides(requested = {}, readonlyMethod = false) {
+    return sanitizeOverrides(requested, readonlyMethod);
   }
 
   toBigNumber(value, decimalShift = 0) {
@@ -70,10 +65,7 @@ export default class Base extends Subscribable {
       return contract.connect(this.sdk.signer);
     }
 
-    if (
-      this.sdk.signer &&
-      contract.signer.address !== this.sdk.signer.address
-    ) {
+    if (this.sdk.signer && contract.signer.address !== this.sdk.signer.address) {
       return contract.connect(this.sdk.signer);
     }
 

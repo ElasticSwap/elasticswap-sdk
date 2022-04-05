@@ -1,92 +1,111 @@
 /* eslint class-methods-use-this: 0 */
 
 import { ethers } from 'ethers';
-import ExchangeFactorySolidity from '@elasticswap/elasticswap/artifacts/src/contracts/ExchangeFactory.sol/ExchangeFactory.json' assert { type: 'json' };
-import BaseEvents from '../BaseEvents.mjs';
+import ExchangeFactoryContract from '@elasticswap/elasticswap/artifacts/src/contracts/ExchangeFactory.sol/ExchangeFactory.json';
 import ErrorHandling from '../ErrorHandling.mjs';
 import Exchange from './Exchange.mjs';
 import QueryFilterable from '../QueryFilterable.mjs';
-import { validateIsAddress, toKey } from '../utils/utils.mjs';
+import { toKey } from '../utils/utils.mjs';
+import { validateIsString, validateIsAddress } from '../utils/validations.mjs';
 
-class Events extends BaseEvents {
-  async NewExchange() {
-    return this.observeEvent({
-      eventName: 'NewExchange',
-      keyBase: this.target.address,
-      subjectBase: toKey('ExchangeFactory', this.target.address),
-    });
-  }
-}
-
+/**
+ * Provides a wrapping interface for the ExchangeFactory contract.
+ *
+ * @export
+ * @class ExchangeFactory
+ * @extends {QueryFilterable}
+ */
 export default class ExchangeFactory extends QueryFilterable {
   constructor(sdk, address) {
     super(sdk);
     this._address = address;
-    this._contract = sdk.contract({
-      abi: ExchangeFactorySolidity.abi,
-      address,
-    });
 
     this._errorHandling = new ErrorHandling('exchangeFactory');
-    this._exchangesByAddress = {}; // mapping indexed by base token and then quote token
-
-    // this.getNewExchangeEvents();
-    // start listening to events emitted from the contract for the `NewExchange` event.
-    // create a callback function that responds to the event.
-    // callback function would create the Exchange class (from the SDK) and store it
-    // in a mapping here.
-    // this._exchangesByAddress[baseTokenAddress][quoteTokenAddress] = new exchange();
-
-    // this.events.NewExchange().then((obj) => {
-    //   console.log('EVENT:', obj);
-    // });
   }
 
+  /**
+   * Provides an ethers contract object via the sdk.
+   *
+   * @param {SDK} sdk - An instance of the SDK class
+   * @param {string} address - An EVM compatible contract address
+   * @param {boolean} [readonly=false] - Readonly contracts use the provider even if a signer exists
+   * @returns {ether.Contract}
+   * @see {@link SDK#contract}
+   * @memberof ExchangeFactory
+   */
+  static contract(sdk, address, readonly = false) {
+    return sdk.contract({
+      abi: ExchangeFactoryContract.abi,
+      address,
+      readonly,
+    });
+  }
+
+  /**
+   * @readonly
+   * @see {@link SDK#contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - An ethers.js Contract instance
+   * @memberof ExchangeFactory
+   */
+  get contract() {
+    return this.constructor.contract(this.sdk, this.address);
+  }
+
+  /**
+   * @readonly
+   * @see {@link SDK#contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - A readonly ethers.js Contract instance
+   * @memberof ExchangeFactory
+   */
   get readonlyContract() {
-    return this._contract;
+    return this.constructor.contract(this.sdk, this.address, true);
   }
 
+  /**
+   * Returns the address of the contract
+   *
+   * @readonly
+   * @memberof ExchangeFactory
+   */
   get address() {
     return this._address;
   }
 
+  /**
+   * @alias address
+   * @readonly
+   * @memberof ExchangeFactory
+   */
   get id() {
-    return this._address;
+    return this.address;
   }
 
-  get contract() {
-    return this._contract;
-  }
-
-  async getFeeAddress() {
-    return this._contract.feeAddress();
-  }
-
-  // getExchanges() {
-  //   // return all exchanges
-  // }
-
-  // getExchangeAddress(baseTokenAddress) {
-  //   // return this._exchangesByAddress[baseTokenAddress];
-  // }
-
-  async getExchange(baseTokenAddress, quoteTokenAddress) {
-    // TODO: this should really used a cached mapping that we build from the events.
-    // return this._exchangesByAddress[baseTokenAddress][quoteTokenAddress];
+  /**
+   * Creates a new exchange for a token pair
+   *
+   * emit NewExchange(msg.sender, address(exchange));
+   *
+   * @param {string} name - Name of the new exchange
+   * @param {string} symbol - Symbol for the exchange's token
+   * @param {string} baseTokenAddress - Address of the base token
+   * @param {string} quoteTokenAddress - Address of the quote token
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @returns {Promise<ethers.TransactionResponse>}
+   * @memberof ExchangeFactory
+   */
+  async createNewExchange(name, symbol, baseTokenAddress, quoteTokenAddress, overrides = {}) {
+    validateIsString(name);
+    validateIsString(symbol);
     validateIsAddress(baseTokenAddress);
     validateIsAddress(quoteTokenAddress);
 
-    if (
-      baseTokenAddress.toLowerCase() ===
-      ethers.constants.AddressZero.toLowerCase()
-    ) {
+    if (baseTokenAddress.toLowerCase() === ethers.constants.AddressZero) {
       throw this._errorHandling.error('BASE_TOKEN_IS_ZERO_ADDRESS');
     }
 
-    if (
-      quoteTokenAddress.toLowerCase() ===
-      ethers.constants.AddressZero.toLowerCase()
-    ) {
+    if (quoteTokenAddress.toLowerCase() === ethers.constants.AddressZero) {
       throw this._errorHandling.error('QUOTE_TOKEN_IS_ZERO_ADDRESS');
     }
 
@@ -94,112 +113,111 @@ export default class ExchangeFactory extends QueryFilterable {
       throw this._errorHandling.error('BASE_TOKEN_SAME_AS_QUOTE');
     }
 
-    // check if we already have this exchange object
-    if (this._exchangesByAddress[baseTokenAddress]) {
-      if (this._exchangesByAddress[baseTokenAddress][quoteTokenAddress]) {
-        return this._exchangesByAddress[baseTokenAddress][quoteTokenAddress];
-      }
-    } else {
-      // we need to create the mapping for this base token
-      this._exchangesByAddress[baseTokenAddress] = {};
-    }
-
-    // create the new exchange, save it to our mapping and return to user.
-    const exchangeAddress = await this.contract.exchangeAddressByTokenAddress(
-      baseTokenAddress,
-      quoteTokenAddress,
+    return this._handleTransaction(
+      await this.contract.createNewExchange(
+        name,
+        symbol,
+        baseTokenAddress,
+        quoteTokenAddress,
+        this.sanitizeOverrides(overrides),
+      ),
     );
-    const exchange = new Exchange(
-      this.sdk,
-      exchangeAddress,
-      baseTokenAddress,
-      quoteTokenAddress,
-    );
-    this._exchangesByAddress[baseTokenAddress][quoteTokenAddress] = exchange;
-    return exchange;
   }
 
-  async createNewExchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    validateIsAddress(baseTokenAddress);
-    validateIsAddress(quoteTokenAddress);
+  /**
+   * Initializes an instance of the Exchange class.
+   *
+   * @param {*} baseTokenAddress
+   * @param {*} quoteTokenAddress
+   * @param {*} [overrides={}]
+   * @return {*}
+   * @memberof ExchangeFactory
+   */
+  async exchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
+    const baseTokenAddressLower = baseTokenAddress.toLowerCase();
+    const quoteTokenAddressLower = quoteTokenAddress.toLowerCase();
 
-    if (
-      baseTokenAddress.toLowerCase() ===
-      ethers.constants.AddressZero.toLowerCase()
-    ) {
+    validateIsAddress(baseTokenAddressLower);
+    validateIsAddress(quoteTokenAddressLower);
+
+    if (baseTokenAddressLower === ethers.constants.AddressZero) {
       throw this._errorHandling.error('BASE_TOKEN_IS_ZERO_ADDRESS');
     }
 
-    if (
-      quoteTokenAddress.toLowerCase() ===
-      ethers.constants.AddressZero.toLowerCase()
-    ) {
+    if (quoteTokenAddressLower === ethers.constants.AddressZero) {
       throw this._errorHandling.error('QUOTE_TOKEN_IS_ZERO_ADDRESS');
     }
 
-    if (baseTokenAddress.toLowerCase() === quoteTokenAddress.toLowerCase()) {
+    if (baseTokenAddressLower === quoteTokenAddressLower) {
       throw this._errorHandling.error('BASE_TOKEN_SAME_AS_QUOTE');
     }
 
-    // confirm this exchange pair does not exist yet.
-    const exchangeAddress = await this.contract.exchangeAddressByTokenAddress(
+    const exchangeAddress = await this.exchangeAddressByTokenAddress(
       baseTokenAddress,
       quoteTokenAddress,
+      overrides,
     );
 
-    if (exchangeAddress !== ethers.constants.AddressZero) {
-      throw this._errorHandling.error('PAIR_ALREADY_EXISTS');
+    if (!exchangeAddress) {
+      throw this._errorHandling.error('INVALID_EXCHANGE');
     }
 
-    this._contract = this.confirmSigner(this.contract);
-    const txStatus = await this.contract.createNewExchange(
-      baseTokenAddress,
-      quoteTokenAddress,
-      this.sanitizeOverrides(overrides),
-    );
-    return txStatus;
+    return new Exchange(this.sdk, exchangeAddress, baseTokenAddressLower, quoteTokenAddressLower);
   }
 
-  async getNewExchangeEvents(overrides = {}) {
-    let endingBlock = overrides.blockTag;
-    if (!endingBlock) {
-      endingBlock = await this.sdk.provider.getBlockNumber();
+  /**
+   * Gets the address of the exchange for a token pair. Returns nil if no exchange is available for
+   * the requested pair.
+   *
+   * @param {string} baseTokenAddress - Address of the base token
+   * @param {string} quoteTokenAddress - Address of the quote token
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @returns {Promise<string>}
+   * @memberof ExchangeFactory
+   */
+  async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides = {}) {
+    const key = toKey(this.sdk.networkId, baseTokenAddress, quoteTokenAddress);
+
+    let exchangeAddress = await this.cache.get(key);
+
+    if (exchangeAddress) {
+      return exchangeAddress;
     }
 
-    const results = await this.queryFilter(
-      'NewExchange',
-      1, // TODO: FIX ME
-      endingBlock,
-    );
+    exchangeAddress = (
+      await this.contract.exchangeAddressByTokenAddress(
+        baseTokenAddress,
+        quoteTokenAddress,
+        this.sanitizeOverrides(overrides, true),
+      )
+    ).toLowerCase();
 
-    // results.forEach((event) => createExchangeFromEvent(event));
-    return results;
-  }
-
-  createExchangeFromEvent(event) {
-    console.log(event);
-    console.log('Events topics', event.topics);
-  }
-
-  get events() {
-    const key = toKey(this.id, 'Events');
-    if (this.cache.has(key)) {
-      return this.cache.get(key);
+    if (exchangeAddress === ethers.constants.AddressZero) {
+      return undefined;
     }
-    this.cache.set(key, new Events(this), { persist: false });
-    return this.cache.get(key);
+
+    this.cache.set(key, exchangeAddress);
+
+    return exchangeAddress;
   }
 
-  _handleTransaction(tx) {
+  /**
+   * Gets the address of the current fee receiver
+   *
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @returns {Promise<string>}
+   * @memberof ExchangeFactory
+   */
+  async feeAddress(overrides = {}) {
+    return (
+      await this.readonlyContract.feeAddress(this.sanitizeOverrides(overrides, true))
+    ).toLowerCase();
+  }
+
+  // wraps the transaction in a notification popup and resolves when it has been mined
+  async _handleTransaction(tx) {
     this.sdk.notify(tx);
-    return tx;
+    const receipt = await tx.wait(1);
+    return receipt;
   }
 }
-
-// Questions for Dan
-// 1. Readonly contracts?
-// 2. event call backs?
-// 3. caching
-// 4. handling tx returns (refreshing dao)
-// 5. changing wallet signers and recreating contracts?
-// IE if we cache the exchanges and then the users changes signers

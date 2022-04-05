@@ -45,18 +45,10 @@ describe('Exchange', () => {
     });
 
     const BaseToken = await deployments.get('BaseToken');
-    baseToken = new ethers.Contract(
-      BaseToken.address,
-      BaseToken.abi,
-      accounts[0],
-    );
+    baseToken = new ethers.Contract(BaseToken.address, BaseToken.abi, accounts[0]);
 
     const QuoteToken = await deployments.get('QuoteToken');
-    quoteToken = new ethers.Contract(
-      QuoteToken.address,
-      QuoteToken.abi,
-      accounts[0],
-    );
+    quoteToken = new ethers.Contract(QuoteToken.address, QuoteToken.abi, accounts[0]);
 
     const Exchange = await deployments.get('Exchange');
     exchange = new ethers.Contract(Exchange.address, Exchange.abi, accounts[0]);
@@ -100,15 +92,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -144,12 +130,8 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await exchangeClass.baseToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 10000000;
@@ -186,15 +168,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -230,12 +206,8 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await exchangeClass.baseToken.approve(exchangeClass.address, 1);
       // confirm no balance before trade.
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 100000;
@@ -256,9 +228,7 @@ describe('Exchange', () => {
       // create expiration 50 minutes from now.
       const expirationValid = Math.round(new Date().getTime() / 1000 + 60 * 50);
       // create expiration 50 minutes before now.
-      const expirationInvalid = Math.round(
-        new Date().getTime() / 1000 - 60 * 50,
-      );
+      const expirationInvalid = Math.round(new Date().getTime() / 1000 - 60 * 50);
       const liquidityProvider = accounts[1];
       const trader = accounts[2];
       const liquidityProviderInitialBalances = 1000000;
@@ -276,15 +246,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -320,12 +284,8 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await exchangeClass.baseToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 100000;
@@ -362,15 +322,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -406,28 +360,20 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await exchangeClass.baseToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // trader executes the first trade, our pricing should be ~1:1 currently minus fees
       const swapAmount = 100000;
       const expectedFee = swapAmount * liquidityFee;
 
-      const baseTokenReserveBalance = await baseToken.balanceOf(
-        exchangeClass.address,
-      );
+      const baseTokenReserveBalance = await baseToken.balanceOf(exchangeClass.address);
       const pricingConstantK =
         (await exchangeClass.baseToken.balanceOf(exchangeClass.address)) *
         (await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
-      const quoteTokenQtyReserveBeforeTrade =
-        pricingConstantK / baseTokenReserveBalance.toNumber();
+      const quoteTokenQtyReserveBeforeTrade = pricingConstantK / baseTokenReserveBalance.toNumber();
       const quoteTokenQtyReserveAfterTrade =
-        pricingConstantK /
-        (baseTokenReserveBalance.toNumber() + swapAmount - expectedFee);
+        pricingConstantK / (baseTokenReserveBalance.toNumber() + swapAmount - expectedFee);
       const quoteTokenQtyExpected =
         quoteTokenQtyReserveBeforeTrade - quoteTokenQtyReserveAfterTrade;
 
@@ -463,15 +409,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -505,17 +445,10 @@ describe('Exchange', () => {
       // send trader quote tokens
       await quoteToken.transfer(trader.address, amountToAdd);
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 10000000;
@@ -552,15 +485,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -596,12 +523,8 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await exchangeClass.quoteToken.approve(exchangeClass.address, 1);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 100000;
@@ -622,9 +545,7 @@ describe('Exchange', () => {
       // create expiration 50 minutes from now.
       const expirationValid = Math.round(new Date().getTime() / 1000 + 60 * 50);
       // create expiration 50 minutes before now.
-      const expirationInvalid = Math.round(
-        new Date().getTime() / 1000 - 60 * 50,
-      );
+      const expirationInvalid = Math.round(new Date().getTime() / 1000 - 60 * 50);
       const liquidityProvider = accounts[1];
       const trader = accounts[2];
       const liquidityProviderInitialBalances = 1000000;
@@ -642,15 +563,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -684,17 +599,10 @@ describe('Exchange', () => {
       // send trader quote tokens
       await quoteToken.transfer(trader.address, amountToAdd);
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
       const swapAmount = 100000;
@@ -731,15 +639,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -773,35 +675,23 @@ describe('Exchange', () => {
       // send trader quote tokens
       await quoteToken.transfer(trader.address, amountToAdd);
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // trader executes the first trade, our pricing should be ~1:1 currently minus fees
       const swapAmount = 100000;
       const expectedFee = swapAmount * liquidityFee;
 
-      const quoteTokenReserveBalance = await quoteToken.balanceOf(
-        exchangeClass.address,
-      );
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
       const pricingConstantK =
         (await exchangeClass.baseToken.balanceOf(exchangeClass.address)) *
         (await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
-      const baseTokenQtyReserveBeforeTrade =
-        pricingConstantK / quoteTokenReserveBalance.toNumber();
+      const baseTokenQtyReserveBeforeTrade = pricingConstantK / quoteTokenReserveBalance.toNumber();
       const baseTokenQtyReserveAfterTrade =
-        pricingConstantK /
-        (quoteTokenReserveBalance.toNumber() + swapAmount - expectedFee);
-      const baseTokenQtyExpected =
-        baseTokenQtyReserveBeforeTrade - baseTokenQtyReserveAfterTrade;
+        pricingConstantK / (quoteTokenReserveBalance.toNumber() + swapAmount - expectedFee);
+      const baseTokenQtyExpected = baseTokenQtyReserveBeforeTrade - baseTokenQtyReserveAfterTrade;
 
       await exchangeClass.swapQuoteTokenForBaseToken(swapAmount, 1, expiration);
       // confirm trade occurred at expected
@@ -833,15 +723,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -871,13 +755,9 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange has 0 balance for base and quote token
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
     });
 
     it('Should baseToken balance be less than baseToken to be swapped', async () => {
@@ -899,10 +779,7 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderBaseTokenInitialBalance,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderBaseTokenInitialBalance);
 
       await quoteToken.transfer(
         liquidityProvider.address,
@@ -937,13 +814,9 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange has 0 balance for base and quote token
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
     });
 
     it('Should quoteToken balance be less than quoteToken to be swapped', async () => {
@@ -965,10 +838,7 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderBaseTokenInitialBalance,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderBaseTokenInitialBalance);
 
       await quoteToken.transfer(
         liquidityProvider.address,
@@ -1003,13 +873,9 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange has 0 balance for base and quote token
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
     });
 
     it('Should timestamp be expired', async () => {
@@ -1030,15 +896,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1068,13 +928,9 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(0);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(0);
     });
 
     it('Should ADD quote and base token liquidity', async () => {
@@ -1095,15 +951,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1127,13 +977,13 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
+      );
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
     });
   });
 
@@ -1156,15 +1006,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1188,17 +1032,15 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
+      );
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
 
-      const lpTokenQtyToRemove = (
-        await exchangeClass.lpTokenBalance
-      ).toNumber();
+      const lpTokenQtyToRemove = (await exchangeClass.lpTokenBalance).toNumber();
 
       expect(lpTokenQtyToRemove).to.greaterThan(0);
 
@@ -1218,17 +1060,15 @@ describe('Exchange', () => {
         'Origin: exchange, Code: 13, Message: TRANSFER_NOT_APPROVED_BY_USER, Path: unknown.',
       );
 
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
-
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
-
-      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(
-        lpTokenQtyToRemove,
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
       );
+
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
+
+      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(lpTokenQtyToRemove);
     });
 
     it('Should LP Token balance be less than LP Token to be removed', async () => {
@@ -1249,15 +1089,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1281,23 +1115,19 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
+      );
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
 
-      const lpTokenQtyToRemove =
-        (await exchangeClass.lpTokenBalance).toNumber() + 1;
+      const lpTokenQtyToRemove = (await exchangeClass.lpTokenBalance).toNumber() + 1;
 
       expect(lpTokenQtyToRemove).to.greaterThan(0);
 
-      await exchangeClass.lpToken.approve(
-        exchangeClass.address,
-        1000000000000000,
-      );
+      await exchangeClass.lpToken.approve(exchangeClass.address, 1000000000000000);
 
       const testMethod = exchangeClass.removeLiquidity.bind(
         exchangeClass,
@@ -1313,26 +1143,22 @@ describe('Exchange', () => {
         'Origin: exchange, Code: 16, Message: NOT_ENOUGH_LP_TOKEN_BALANCE, Path: unknown.',
       );
 
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
-
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
-
-      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(
-        lpTokenQtyToRemove - 1,
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
       );
+
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
+
+      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(lpTokenQtyToRemove - 1);
     });
 
     it('Should timestamp be expired', async () => {
       // create expiration 50 minutes from now.
       const expirationValid = Math.round(new Date().getTime() / 1000 + 60 * 50);
       // create expiration 50 minutes before now.
-      const expirationInvalid = Math.round(
-        new Date().getTime() / 1000 - 60 * 50,
-      );
+      const expirationInvalid = Math.round(new Date().getTime() / 1000 - 60 * 50);
       const liquidityProvider = accounts[1];
       const liquidityProviderInitialBalances = 1000000;
       const baseTokenQtyToAdd = 10000;
@@ -1348,15 +1174,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1380,24 +1200,19 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
+      );
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
 
-      const lpTokenQtyToRemove = (
-        await exchangeClass.lpTokenBalance
-      ).toNumber();
+      const lpTokenQtyToRemove = (await exchangeClass.lpTokenBalance).toNumber();
 
       expect(lpTokenQtyToRemove).to.greaterThan(0);
 
-      await exchangeClass.lpToken.approve(
-        exchangeClass.address,
-        1000000000000000,
-      );
+      await exchangeClass.lpToken.approve(exchangeClass.address, 1000000000000000);
 
       const testMethod = exchangeClass.removeLiquidity.bind(
         exchangeClass,
@@ -1413,17 +1228,15 @@ describe('Exchange', () => {
         'Origin: exchange, Code: 14, Message: TIMESTAMP_EXPIRED, Path: unknown.',
       );
 
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
-
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
-
-      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(
-        lpTokenQtyToRemove,
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
       );
+
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
+
+      expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(lpTokenQtyToRemove);
     });
 
     it('Should allow for REMOVE quote and base token liquidity', async () => {
@@ -1444,15 +1257,9 @@ describe('Exchange', () => {
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
 
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
 
@@ -1476,24 +1283,19 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange now has the expected balance
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(baseTokenQtyToAdd);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        baseTokenQtyToAdd,
+      );
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
 
-      const lpTokenQtyToRemove = (
-        await exchangeClass.lpTokenBalance
-      ).toNumber();
+      const lpTokenQtyToRemove = (await exchangeClass.lpTokenBalance).toNumber();
 
       expect(lpTokenQtyToRemove).to.greaterThan(0);
 
-      await exchangeClass.lpToken.approve(
-        exchangeClass.address,
-        1000000000000000,
-      );
+      await exchangeClass.lpToken.approve(exchangeClass.address, 1000000000000000);
 
       await exchangeClass.removeLiquidity(
         lpTokenQtyToRemove,
@@ -1504,13 +1306,9 @@ describe('Exchange', () => {
       );
 
       // should remove all but some min_liquidity that is locked.
-      expect(
-        (await baseToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(448);
+      expect((await baseToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(448);
 
-      expect(
-        (await quoteToken.balanceOf(exchangeClass.address)).toNumber(),
-      ).to.equal(2237);
+      expect((await quoteToken.balanceOf(exchangeClass.address)).toNumber()).to.equal(2237);
 
       expect((await exchangeClass.lpTokenBalance).toNumber()).to.equal(0);
     });
@@ -1536,15 +1334,9 @@ describe('Exchange', () => {
       );
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
       await exchangeClass.quoteToken.approve(
@@ -1578,47 +1370,35 @@ describe('Exchange', () => {
       await quoteToken.transfer(trader.address, amountToAdd);
 
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // trader executes the first trade, our pricing should be ~1:1 currently minus fees
       const swapAmount = 10000;
       const swapAmountBN = toBigNumber(swapAmount);
       const expectedFeeBN = await exchangeClass.calculateFees(swapAmount);
-      const quoteTokenReserveBalance = await quoteToken.balanceOf(
-        exchangeClass.address,
-      );
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
       const quoteTokenReserveBalanceBN = toBigNumber(quoteTokenReserveBalance);
       const pricingConstantK = (
         await exchangeClass.baseToken.balanceOf(exchangeClass.address)
-      ).multipliedBy(
-        await exchangeClass.quoteToken.balanceOf(exchangeClass.address),
-      );
+      ).multipliedBy(await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
 
       const pricingConstantKBN = toBigNumber(pricingConstantK);
       const baseTokenQtyReserveBeforeTradeBN = pricingConstantKBN.dividedBy(
         quoteTokenReserveBalanceBN,
       );
-      const initialPriceBN = quoteTokenReserveBalanceBN.dividedBy(
-        baseTokenQtyReserveBeforeTradeBN,
-      );
+      const initialPriceBN = quoteTokenReserveBalanceBN.dividedBy(baseTokenQtyReserveBeforeTradeBN);
       const quoteTokenReserveQtyAfterTradeBN = quoteTokenReserveBalanceBN
         .plus(swapAmountBN)
         .minus(expectedFeeBN);
       const baseTokenQtyReserveAfterTradeBN = pricingConstantKBN
         .dividedBy(quoteTokenReserveQtyAfterTradeBN)
         .dp(0, ROUND_UP);
-      const outputTokenAmountLessFeesBN =
-        baseTokenQtyReserveBeforeTradeBN.minus(baseTokenQtyReserveAfterTradeBN);
+      const outputTokenAmountLessFeesBN = baseTokenQtyReserveBeforeTradeBN.minus(
+        baseTokenQtyReserveAfterTradeBN,
+      );
 
       const slippagePercent = 0;
       const slippagePercentBN = toBigNumber(slippagePercent);
@@ -1640,9 +1420,7 @@ describe('Exchange', () => {
         slippagePercent,
       );
 
-      expect(expectedPriceImpact.toString()).to.equal(
-        calculatedPriceImpactBN.toString(),
-      );
+      expect(expectedPriceImpact.toString()).to.equal(calculatedPriceImpactBN.toString());
     });
 
     it('should calculate the alternative price impact, accounting for fees and slippage', async () => {
@@ -1664,15 +1442,9 @@ describe('Exchange', () => {
       );
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
       await exchangeClass.quoteToken.approve(
@@ -1706,47 +1478,35 @@ describe('Exchange', () => {
       await quoteToken.transfer(trader.address, amountToAdd);
 
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // trader executes the first trade, our pricing should be ~1:1 currently minus fees
       const swapAmount = 10000;
       const swapAmountBN = toBigNumber(swapAmount);
       const expectedFeeBN = await exchangeClass.calculateFees(swapAmount);
-      const quoteTokenReserveBalance = await quoteToken.balanceOf(
-        exchangeClass.address,
-      );
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
       const quoteTokenReserveBalanceBN = toBigNumber(quoteTokenReserveBalance);
       const pricingConstantK = (
         await exchangeClass.baseToken.balanceOf(exchangeClass.address)
-      ).multipliedBy(
-        await exchangeClass.quoteToken.balanceOf(exchangeClass.address),
-      );
+      ).multipliedBy(await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
 
       const pricingConstantKBN = toBigNumber(pricingConstantK);
       const baseTokenQtyReserveBeforeTradeBN = pricingConstantKBN.dividedBy(
         quoteTokenReserveBalanceBN,
       );
-      const initialPriceBN = quoteTokenReserveBalanceBN.dividedBy(
-        baseTokenQtyReserveBeforeTradeBN,
-      );
+      const initialPriceBN = quoteTokenReserveBalanceBN.dividedBy(baseTokenQtyReserveBeforeTradeBN);
       const quoteTokenReserveQtyAfterTradeBN = quoteTokenReserveBalanceBN
         .plus(swapAmountBN)
         .minus(expectedFeeBN);
       const baseTokenQtyReserveAfterTradeBN = pricingConstantKBN
         .dividedBy(quoteTokenReserveQtyAfterTradeBN)
         .dp(0, ROUND_UP);
-      const outputTokenAmountLessFeesBN =
-        baseTokenQtyReserveBeforeTradeBN.minus(baseTokenQtyReserveAfterTradeBN);
+      const outputTokenAmountLessFeesBN = baseTokenQtyReserveBeforeTradeBN.minus(
+        baseTokenQtyReserveAfterTradeBN,
+      );
 
       const slippagePercent = 5;
       const slippagePercentBN = toBigNumber(slippagePercent);
@@ -1768,9 +1528,7 @@ describe('Exchange', () => {
         slippagePercent,
       );
 
-      expect(expectedPriceImpact.toString()).to.equal(
-        calculatedPriceImpactBN.toString(),
-      );
+      expect(expectedPriceImpact.toString()).to.equal(calculatedPriceImpactBN.toString());
     });
   });
 
@@ -1794,15 +1552,9 @@ describe('Exchange', () => {
       );
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
       await exchangeClass.quoteToken.approve(
@@ -1836,40 +1588,25 @@ describe('Exchange', () => {
       await quoteToken.transfer(trader.address, amountToAdd);
 
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       const outputAmount = 10000;
       const outputAmountBN = toBigNumber(outputAmount);
 
-      const liquidityFeeInBasisPointsBN = toBigNumber(
-        liquidityFeeInBasisPoints,
-      );
+      const liquidityFeeInBasisPointsBN = toBigNumber(liquidityFeeInBasisPoints);
 
-      const quoteTokenReserveBalance = await quoteToken.balanceOf(
-        exchangeClass.address,
-      );
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
       const quoteTokenReserveBalanceBN = toBigNumber(quoteTokenReserveBalance);
 
       const pricingConstantK = (
         await exchangeClass.baseToken.balanceOf(exchangeClass.address)
-      ).multipliedBy(
-        await exchangeClass.quoteToken.balanceOf(exchangeClass.address),
-      );
+      ).multipliedBy(await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
       const pricingConstantKBN = toBigNumber(pricingConstantK);
 
-      const baseTokenQtyReserveBN = pricingConstantKBN.dividedBy(
-        quoteTokenReserveBalanceBN,
-      );
+      const baseTokenQtyReserveBN = pricingConstantKBN.dividedBy(quoteTokenReserveBalanceBN);
 
       const slippagePercentBN = toBigNumber(0);
       const BASIS_POINTS = toBigNumber(10000);
@@ -1879,9 +1616,7 @@ describe('Exchange', () => {
         .multipliedBy(BASIS_POINTS)
         .dp(18, ROUND_DOWN);
 
-      const basisPointDifference = BASIS_POINTS.minus(
-        liquidityFeeInBasisPointsBN,
-      );
+      const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
 
       const outputSlippageMultiplier = baseTokenQtyReserveBN
         .multipliedBy(slippagePercentBN.dividedBy(BigNumber(100)))
@@ -1896,16 +1631,13 @@ describe('Exchange', () => {
 
       const calculatedInputAmount = numerator.dividedBy(denominator).abs();
 
-      const expectedInputAmount =
-        await exchangeClass.calculateInputAmountFromOutputAmount(
-          outputAmountBN,
-          baseToken.address,
-          slippagePercentBN,
-        );
-
-      expect(expectedInputAmount.toNumber()).to.equal(
-        calculatedInputAmount.toNumber(),
+      const expectedInputAmount = await exchangeClass.calculateInputAmountFromOutputAmount(
+        outputAmountBN,
+        baseToken.address,
+        slippagePercentBN,
       );
+
+      expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
     });
 
     it('should calculate the input amount from output amount correctly, accounting for fees and slippage', async () => {
@@ -1927,15 +1659,9 @@ describe('Exchange', () => {
       );
 
       // send users (liquidity provider) base and quote tokens for easy accounting.
-      await baseToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
-      await quoteToken.transfer(
-        liquidityProvider.address,
-        liquidityProviderInitialBalances,
-      );
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
 
       // add approvals
       await exchangeClass.quoteToken.approve(
@@ -1969,40 +1695,25 @@ describe('Exchange', () => {
       await quoteToken.transfer(trader.address, amountToAdd);
 
       // add approvals for exchange to trade their quote tokens
-      await exchangeClass.quoteToken.approve(
-        exchangeClass.address,
-        amountToAdd,
-      );
+      await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-        0,
-      );
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-        amountToAdd,
-      );
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       const outputAmount = 10000;
       const outputAmountBN = toBigNumber(outputAmount);
 
-      const liquidityFeeInBasisPointsBN = toBigNumber(
-        liquidityFeeInBasisPoints,
-      );
+      const liquidityFeeInBasisPointsBN = toBigNumber(liquidityFeeInBasisPoints);
 
-      const quoteTokenReserveBalance = await quoteToken.balanceOf(
-        exchangeClass.address,
-      );
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
       const quoteTokenReserveBalanceBN = toBigNumber(quoteTokenReserveBalance);
 
       const pricingConstantK = (
         await exchangeClass.baseToken.balanceOf(exchangeClass.address)
-      ).multipliedBy(
-        await exchangeClass.quoteToken.balanceOf(exchangeClass.address),
-      );
+      ).multipliedBy(await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
       const pricingConstantKBN = toBigNumber(pricingConstantK);
 
-      const baseTokenQtyReserveBN = pricingConstantKBN.dividedBy(
-        quoteTokenReserveBalanceBN,
-      );
+      const baseTokenQtyReserveBN = pricingConstantKBN.dividedBy(quoteTokenReserveBalanceBN);
 
       const slippagePercentBN = toBigNumber(5);
       const BASIS_POINTS = toBigNumber(10000);
@@ -2012,9 +1723,7 @@ describe('Exchange', () => {
         .multipliedBy(BASIS_POINTS)
         .dp(18, ROUND_DOWN);
 
-      const basisPointDifference = BASIS_POINTS.minus(
-        liquidityFeeInBasisPointsBN,
-      );
+      const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
 
       const outputSlippageMultiplier = baseTokenQtyReserveBN
         .multipliedBy(slippagePercentBN.dividedBy(BigNumber(100)))
@@ -2029,16 +1738,13 @@ describe('Exchange', () => {
 
       const calculatedInputAmount = numerator.dividedBy(denominator).abs();
 
-      const expectedInputAmount =
-        await exchangeClass.calculateInputAmountFromOutputAmount(
-          outputAmountBN,
-          baseToken.address,
-          slippagePercentBN,
-        );
-
-      expect(expectedInputAmount.toNumber()).to.equal(
-        calculatedInputAmount.toNumber(),
+      const expectedInputAmount = await exchangeClass.calculateInputAmountFromOutputAmount(
+        outputAmountBN,
+        baseToken.address,
+        slippagePercentBN,
       );
+
+      expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
     });
   });
 });

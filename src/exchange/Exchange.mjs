@@ -30,6 +30,13 @@ export default class Exchange extends Base {
     this._errorHandling = new ErrorHandling('exchange');
   }
 
+  /**
+   * @readonly
+   * @see {@link SDK#contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - An ethers.js Contract instance
+   * @memberof Exchange
+   */
   static contract(sdk, address, readonly = false) {
     return sdk.contract({
       abi: ExchangeSolidity.abi,
@@ -107,9 +114,7 @@ export default class Exchange extends Base {
   }
 
   async calculateBaseTokenQty(quoteTokenQty, baseTokenQtyMin) {
-    const baseTokenReserveQty = await this._baseToken.balanceOf(
-      this._exchangeAddress,
-    );
+    const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
     const liquidityFeeInBasisPoints = await this.liquidityFee;
     const internalBalances = await this.contract.internalBalances();
 
@@ -131,9 +136,7 @@ export default class Exchange extends Base {
     if (inputTokenAddressLowerCase === this.baseTokenAddress.toLowerCase()) {
       inputTokenReserveQty = internalBalances.baseTokenReserveQty;
       outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-    } else if (
-      inputTokenAddressLowerCase === this.quoteTokenAddress.toLowerCase()
-    ) {
+    } else if (inputTokenAddressLowerCase === this.quoteTokenAddress.toLowerCase()) {
       inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
       outputTokenReserveQty = internalBalances.baseTokenReserveQty;
     }
@@ -146,11 +149,7 @@ export default class Exchange extends Base {
     return calculateFees(swapAmount, liquidityFeeInBasisPoints);
   }
 
-  async calculateInputAmountFromOutputAmount(
-    outputAmount,
-    outputTokenAddress,
-    slippagePercent,
-  ) {
+  async calculateInputAmountFromOutputAmount(outputAmount, outputTokenAddress, slippagePercent) {
     const outputTokenAddressLowerCase = outputTokenAddress.toLowerCase();
     const outputTokenAmountBN = toBigNumber(outputAmount);
     const slippagePercentBN = toBigNumber(slippagePercent);
@@ -179,12 +178,8 @@ export default class Exchange extends Base {
   }
 
   async calculateLPTokenAmount(quoteTokenAmount, baseTokenAmount, slippage) {
-    const quoteTokenReserveQty = await this._quoteToken.balanceOf(
-      this._exchangeAddress,
-    );
-    const baseTokenReserveQty = await this._baseToken.balanceOf(
-      this._exchangeAddress,
-    );
+    const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
+    const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
     const internalBalances = await this.contract.internalBalances();
     const totalSupplyOfLiquidityTokens = await this._lpToken.totalSupply();
 
@@ -207,25 +202,16 @@ export default class Exchange extends Base {
    * OALFLS - outputAmountLessFessLessSlippage
    * IOA - initialOutputAmount = input / exchangeRate
    */
-  async calculatePriceImpact(
-    inputTokenAmount,
-    inputTokenAddress,
-    slippagePercent,
-  ) {
-    const calculatedOutputAmountLessFeesLessSlippage =
-      await this.calculateOutputAmountLessFees(
-        inputTokenAmount,
-        inputTokenAddress,
-        slippagePercent,
-      );
+  async calculatePriceImpact(inputTokenAmount, inputTokenAddress, slippagePercent) {
+    const calculatedOutputAmountLessFeesLessSlippage = await this.calculateOutputAmountLessFees(
+      inputTokenAmount,
+      inputTokenAddress,
+      slippagePercent,
+    );
 
     // this exchange rate is prior to swap occurance
-    const calculatedExchangeRate = await this.calculateExchangeRate(
-      inputTokenAddress,
-    );
-    const iniialOutputAmount = toBigNumber(inputTokenAmount).dividedBy(
-      calculatedExchangeRate,
-    );
+    const calculatedExchangeRate = await this.calculateExchangeRate(inputTokenAddress);
+    const iniialOutputAmount = toBigNumber(inputTokenAmount).dividedBy(calculatedExchangeRate);
     const ratioMultiplier = calculatedOutputAmountLessFeesLessSlippage
       .dividedBy(iniialOutputAmount)
       .multipliedBy(toBigNumber(100));
@@ -247,12 +233,8 @@ export default class Exchange extends Base {
   }
 
   async calculateTokenAmountsFromLPTokens(lpTokenQtyToRedeem, slippagePercent) {
-    const quoteTokenReserveQty = await this._quoteToken.balanceOf(
-      this._exchangeAddress,
-    );
-    const baseTokenReserveQty = await this._baseToken.balanceOf(
-      this._exchangeAddress,
-    );
+    const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
+    const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
     const totalLPTokenSupply = await this._lpToken.totalSupply();
 
     return calculateTokenAmountsFromLPTokens(
@@ -264,11 +246,7 @@ export default class Exchange extends Base {
     );
   }
 
-  async calculateOutputAmountLessFees(
-    inputAmount,
-    inputTokenAddress,
-    slippagePercent,
-  ) {
+  async calculateOutputAmountLessFees(inputAmount, inputTokenAddress, slippagePercent) {
     const inputTokenAddressLowerCase = inputTokenAddress.toLowerCase();
     const inputTokenAmountBN = toBigNumber(inputAmount);
     let inputTokenReserveQty;
@@ -293,9 +271,7 @@ export default class Exchange extends Base {
   }
 
   async calculateShareOfPool(quoteTokenAmount, baseTokenAmount, slippage) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(
-      await this._lpToken.totalSupply(),
-    );
+    const totalSupplyOfLiquidityTokens = toBigNumber(await this._lpToken.totalSupply());
     if (totalSupplyOfLiquidityTokens.eq(toBigNumber(0))) {
       return toBigNumber(1); // 100% of pool!
     }
@@ -309,9 +285,7 @@ export default class Exchange extends Base {
   }
 
   async calculateShareOfPoolProvided(lpAmount) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(
-      await this._lpToken.totalSupply(),
-    );
+    const totalSupplyOfLiquidityTokens = toBigNumber(await this._lpToken.totalSupply());
     if (totalSupplyOfLiquidityTokens.eq(lpAmount)) {
       return toBigNumber(1); // 100% of pool!
     }
@@ -364,9 +338,7 @@ export default class Exchange extends Base {
     }
 
     if (baseTokenQtyDesiredBN.lte(baseTokenQtyMinBN)) {
-      throw this.errorHandling.error(
-        'TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM',
-      );
+      throw this.errorHandling.error('TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM');
     }
 
     if ((await this.baseTokenBalance).lt(baseTokenQtyDesiredBN)) {
@@ -374,9 +346,7 @@ export default class Exchange extends Base {
     }
 
     if (quoteTokenQtyDesiredBN.lte(quoteTokenQtyMinBN)) {
-      throw this.errorHandling.error(
-        'TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM',
-      );
+      throw this.errorHandling.error('TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM');
     }
 
     if ((await this.quoteTokenBalance).lt(quoteTokenQtyDesiredBN)) {

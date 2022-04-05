@@ -27,11 +27,48 @@ import {
   toNumber,
   truncate,
   upTo,
-  validateIsAddress,
 } from './utils/utils.mjs';
+
+import {
+  isAddress,
+  isArray,
+  isBigNumber,
+  isDate,
+  isFunction,
+  isNumber,
+  isPOJO,
+  isSet,
+  isString,
+  isTransactionHash,
+} from './utils/typeChecks.mjs';
+
+import {
+  validate,
+  validateIsAddress,
+  validateIsArray,
+  validateIsBigNumber,
+  validateIsDate,
+  validateIsFunction,
+  validateIsNumber,
+  validateIsPOJO,
+  validateIsSet,
+  validateIsString,
+} from './utils/validations.mjs';
+
+const FEE_DATA_INTERVAL = 1000;
 
 export const utils = {
   amountFormatter,
+  isAddress,
+  isArray,
+  isBigNumber,
+  isDate,
+  isFunction,
+  isNumber,
+  isPOJO,
+  isSet,
+  isString,
+  isTransactionHash,
   round,
   shortenAddress,
   shortenHash,
@@ -43,7 +80,16 @@ export const utils = {
   toNumber,
   truncate,
   upTo,
+  validate,
   validateIsAddress,
+  validateIsArray,
+  validateIsBigNumber,
+  validateIsDate,
+  validateIsFunction,
+  validateIsNumber,
+  validateIsPOJO,
+  validateIsSet,
+  validateIsString,
 };
 
 export const ERC20 = ERC20Class;
@@ -170,10 +216,7 @@ export class SDK extends Subscribable {
     }
 
     try {
-      this._exchangeFactory = new ExchangeFactory(
-        this,
-        this.contractAddress('ExchangeFactory'),
-      );
+      this._exchangeFactory = new ExchangeFactory(this, this.contractAddress('ExchangeFactory'));
     } catch (e) {
       console.error('Unable to load exchangeFactory:', e);
     }
@@ -193,11 +236,41 @@ export class SDK extends Subscribable {
 
   /**
    * @readonly
+   * @returns {BigNumber} - The current estimated gas price
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getFeeData}
+   * @memberof SDK
+   */
+  get gasPrice() {
+    return this._gasPrice || toBigNumber(0);
+  }
+
+  /**
+   * @readonly
    * @returns {boolean} - true after the provider and (if applicable) signer have been loaded
    * @memberof SDK
    */
   get initialized() {
     return this._initialized;
+  }
+
+  /**
+   * @readonly
+   * @returns {BigNumber} - The current estimated max fee per gas
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getFeeData}
+   * @memberof SDK
+   */
+  get maxFeePerGas() {
+    return this._maxFeePerGas || toBigNumber(0);
+  }
+
+  /**
+   * @readonly
+   * @returns {BigNumber} - The current estimated max priority fee per gas
+   * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getFeeData}
+   * @memberof SDK
+   */
+  get maxPriorityFeePerGas() {
+    return this._maxPriorityFeePerGas || toBigNumber(0);
   }
 
   /**
@@ -272,10 +345,7 @@ export class SDK extends Subscribable {
     }
 
     try {
-      this._stakingPools = new StakingPools(
-        this,
-        this.contractAddress('StakingPools'),
-      );
+      this._stakingPools = new StakingPools(this, this.contractAddress('StakingPools'));
     } catch (e) {
       console.error('Unable to load stakingPools:', e);
     }
@@ -359,6 +429,7 @@ export class SDK extends Subscribable {
       console.error('@elasticswap/sdk: error switching networks', errors);
     });
 
+    this._updateFeeData();
     this._configureNotify();
 
     this.touch();
@@ -390,11 +461,9 @@ export class SDK extends Subscribable {
 
     this.balanceOf(this.account);
 
-    await Promise.all([this._listenToChain(), this._setName()]).catch(
-      (errors) => {
-        console.error('@elasticswap/sdk: error switching networks', errors);
-      },
-    );
+    await Promise.all([this._listenToChain(), this._setName()]).catch((errors) => {
+      console.error('@elasticswap/sdk: error switching networks', errors);
+    });
 
     this._configureNotify();
 
@@ -494,9 +563,7 @@ export class SDK extends Subscribable {
         const handleError = ({ reason, replacement }) => {
           if (reason && replacement && replacement.hash) {
             update({
-              message: `Transaction ${shortenHash(
-                replacement.hash,
-              )} is processing...`,
+              message: `Transaction ${shortenHash(replacement.hash)} is processing...`,
             });
 
             wait(1)
@@ -661,6 +728,17 @@ export class SDK extends Subscribable {
     }
 
     return this.balances;
+  }
+
+  // updates fetches the latest gas price from the provider
+  async _updateFeeData() {
+    clearTimeout(this._feeDataUpdatePid);
+    const { gasPrice, maxFeePerGas, maxPriorityFeePerGas } = await this.provider.getFeeData();
+    this._gasPrice = toBigNumber(gasPrice, 9); // GWEI
+    this._maxFeePerGas = toBigNumber(maxFeePerGas, 9); // GWEI
+    this._maxPriorityFeePerGas = toBigNumber(maxPriorityFeePerGas, 9); // GWEI
+    this.touch();
+    this._feeDataUpdatePid = setTimeout(() => this._updateFeeData, FEE_DATA_INTERVAL);
   }
 }
 

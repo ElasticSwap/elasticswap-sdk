@@ -15,23 +15,11 @@ export default class QueryFilterable extends Cachable {
     const promises = [];
 
     if (startingBlock && collection.startingBlock > startingBlock) {
-      promises.push(
-        this.contract.queryFilter(
-          eventName,
-          startingBlock,
-          collection.startingBlock,
-        ),
-      );
+      promises.push(this.contract.queryFilter(eventName, startingBlock, collection.startingBlock));
     }
 
     if (endingBlock && collection.endingBlock < endingBlock) {
-      promises.push(
-        this.contract.queryFilter(
-          eventName,
-          collection.endingBlock + 1,
-          endingBlock,
-        ),
-      );
+      promises.push(this.contract.queryFilter(eventName, collection.endingBlock + 1, endingBlock));
     }
 
     const additionalEvents = await Promise.all(promises);

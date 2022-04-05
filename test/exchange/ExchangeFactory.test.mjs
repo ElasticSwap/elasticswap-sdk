@@ -40,18 +40,10 @@ describe('ExchangeFactory', () => {
     await sdk.awaitInitialized();
 
     const BaseToken = await deployments.get('BaseToken');
-    baseToken = new ethers.Contract(
-      BaseToken.address,
-      BaseToken.abi,
-      accounts[0],
-    );
+    baseToken = new ethers.Contract(BaseToken.address, BaseToken.abi, accounts[0]);
 
     const QuoteToken = await deployments.get('QuoteToken');
-    quoteToken = new ethers.Contract(
-      QuoteToken.address,
-      QuoteToken.abi,
-      accounts[0],
-    );
+    quoteToken = new ethers.Contract(QuoteToken.address, QuoteToken.abi, accounts[0]);
   });
 
   beforeEach(async () => {
@@ -62,10 +54,7 @@ describe('ExchangeFactory', () => {
   describe('Constructor', () => {
     it('can be created via constructor', async () => {
       await deployments.fixture();
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
       assert.isNotNull(exchangeFactory);
       assert.equal(ExchangeFactory.address, exchangeFactory.address);
     });
@@ -73,10 +62,7 @@ describe('ExchangeFactory', () => {
 
   describe('getFeeAddress', () => {
     it('returns expected fee address', async () => {
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
 
       const exchangeFactoryContract = new ethers.Contract(
         ExchangeFactory.address,
@@ -95,10 +81,7 @@ describe('ExchangeFactory', () => {
       const randomAccount = accounts[5];
       await sdk.changeSigner(randomAccount);
 
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
 
       const exchangeFactoryContract = new ethers.Contract(
         ExchangeFactory.address,
@@ -123,25 +106,15 @@ describe('ExchangeFactory', () => {
           quoteToken.address,
         );
       assert.notEqual(exchangeAddress, ethers.constants.AddressZero);
-      const exchange = await exchangeFactory.getExchange(
-        baseToken.address,
-        quoteToken.address,
-      );
       assert.equal(exchangeAddress, exchange.address);
     });
 
     it('Will fail to create a duplicate exchange', async () => {
       const randomAccount = accounts[5];
       await sdk.changeSigner(randomAccount);
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
 
-      await exchangeFactory.createNewExchange(
-        baseToken.address,
-        quoteToken.address,
-      );
+      await exchangeFactory.createNewExchange(baseToken.address, quoteToken.address);
 
       await expectThrowsAsync(
         exchangeFactory.createNewExchange.bind(
@@ -156,10 +129,7 @@ describe('ExchangeFactory', () => {
     it('Will fail to create exchange with bad addresses', async () => {
       const randomAccount = accounts[5];
       await sdk.changeSigner(randomAccount);
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
 
       await expectThrowsAsync(
         exchangeFactory.createNewExchange.bind(

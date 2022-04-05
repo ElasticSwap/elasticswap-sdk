@@ -1,4 +1,4 @@
-import { isPOJO } from './utils/utils.mjs';
+import { isPOJO } from './utils/typeChecks.mjs';
 import Base from './Base.mjs';
 
 const localData = {
