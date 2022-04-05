@@ -81,7 +81,10 @@ describe('ExchangeFactory', () => {
       const randomAccount = accounts[5];
       await sdk.changeSigner(randomAccount);
 
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
+        sdk,
+        ExchangeFactory.address,
+      );
 
       const exchangeFactoryContract = new ethers.Contract(
         ExchangeFactory.address,
@@ -106,6 +109,10 @@ describe('ExchangeFactory', () => {
           quoteToken.address,
         );
       assert.notEqual(exchangeAddress, ethers.constants.AddressZero);
+      const exchange = await exchangeFactory.getExchange(
+        baseToken.address,
+        quoteToken.address,
+      );
       assert.equal(exchangeAddress, exchange.address);
     });
 
