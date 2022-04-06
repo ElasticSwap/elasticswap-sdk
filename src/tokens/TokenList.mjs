@@ -5,7 +5,7 @@ import { validateIsAddress } from '../utils/validations.mjs';
 
 const UPDATE_INTERVAL = 300000; // 5 minutes
 
-const versionCompilation = ({ major, minor, patch }) =>
+const versionCompilation = ({ major = 0, minor = 0, patch = 0 } = {}) =>
   toBigNumber(`${major}${minor.toString().padStart(6, '0')}${patch.toString().padStart(6, '0')}`);
 
 /**
@@ -84,6 +84,7 @@ export default class TokenList extends Cachable {
     super(sdk);
 
     this._account = this.sdk.account;
+    this._data = {};
     this._netorkId = this.sdk.networkId;
     this._tokens = {}; // updated by _processData
     this._url = url;
@@ -94,6 +95,8 @@ export default class TokenList extends Cachable {
 
     this.sdk.subscribe(({ account, networkId }) => {
       if (networkId !== this._networkId || account !== this._account) {
+        this._account = this.sdk.account;
+        this._netorkId = this.sdk.networkId;
         this._processData(); // reprocess data to use the new chain / account
       }
     });
@@ -235,18 +238,20 @@ export default class TokenList extends Cachable {
   _processData() {
     const tokens = {};
 
-    (this._data.tokens || []).forEach((tokenData) => {
-      const token = new Token(this.sdk, tokenData);
+    const data = (this._data.tokens || []);
+
+    for (let i = 0; i < data.length; i++) {
+      const token = new Token(this.sdk, data[i]);
 
       // we're only interested in tokens on the current network
-      if (token.networkId === this.sdk.networkId) {
+      if (token.chainId === this.sdk.networkId) {
         tokens[token.address] = token;
         if (this.sdk.account) {
           // as the token for the balance of the current account to queue eager loading
           token.balanceOf(this.sdk.account);
         }
       }
-    });
+    }
 
     this._tokens = tokens;
     this.touch();
