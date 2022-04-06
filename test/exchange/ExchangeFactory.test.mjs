@@ -81,38 +81,27 @@ describe('ExchangeFactory', () => {
       const randomAccount = accounts[5];
       await sdk.changeSigner(randomAccount);
 
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(
-        sdk,
-        ExchangeFactory.address,
-      );
+      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
 
       const exchangeFactoryContract = new ethers.Contract(
         ExchangeFactory.address,
         ExchangeFactory.abi,
         accounts[0],
       );
-      const zeroAddress =
-        await exchangeFactoryContract.exchangeAddressByTokenAddress(
-          baseToken.address,
-          quoteToken.address,
-        );
+      const zeroAddress = await exchangeFactoryContract.exchangeAddressByTokenAddress(
+        baseToken.address,
+        quoteToken.address,
+      );
       assert.equal(zeroAddress, ethers.constants.AddressZero);
 
-      await exchangeFactory.createNewExchange(
-        baseToken.address,
-        quoteToken.address,
-      );
+      await exchangeFactory.createNewExchange(baseToken.address, quoteToken.address);
 
-      const exchangeAddress =
-        await exchangeFactoryContract.exchangeAddressByTokenAddress(
-          baseToken.address,
-          quoteToken.address,
-        );
-      assert.notEqual(exchangeAddress, ethers.constants.AddressZero);
-      const exchange = await exchangeFactory.getExchange(
+      const exchangeAddress = await exchangeFactoryContract.exchangeAddressByTokenAddress(
         baseToken.address,
         quoteToken.address,
       );
+      assert.notEqual(exchangeAddress, ethers.constants.AddressZero);
+      const exchange = await exchangeFactory.getExchange(baseToken.address, quoteToken.address);
       assert.equal(exchangeAddress, exchange.address);
     });
 

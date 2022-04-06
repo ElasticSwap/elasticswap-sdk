@@ -13,6 +13,7 @@ import LocalStorageAdapterClass from './adapters/LocalStorageAdapter.mjs';
 import StakingPoolsClass from './staking/StakingPools.mjs';
 import StorageAdapterClass from './adapters/StorageAdapter.mjs';
 import SubscribableClass from './Subscribable.mjs';
+import TokenListClass from './tokens/TokenList.mjs';
 
 import {
   amountFormatter,
@@ -100,6 +101,7 @@ export const LocalStorageAdapter = LocalStorageAdapterClass;
 export const StakingPools = StakingPoolsClass;
 export const StorageAdapter = StorageAdapterClass;
 export const Subscribable = SubscribableClass;
+export const TokenList = TokenListClass;
 
 /**
  * Primary class. All things extend from here. SDK proxies ethers.js to provide an interface for
@@ -140,6 +142,7 @@ export class SDK extends Subscribable {
 
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
     this._storageAdapter = storageAdapter || new LocalStorageAdapter();
+    this._tokenLists = {}; // TokenLists persist across network / provider changes
 
     // tracks all the addresses we interact with under the current provider for filtering reasons
     this._addresses = new Set();
@@ -551,6 +554,50 @@ export class SDK extends Subscribable {
   }
 
   /**
+   * returns true is the address is tracked
+   *
+   * @param {string} address
+   * @return {boolean}
+   * @memberof SDK
+   */
+  isTrackedAddress(address) {
+    if (isAddress(address)) {
+      return this._addresses.has(address.toLowerCase());
+    }
+
+    return false;
+  }
+
+  /**
+   * Checks if the address or ENS name is valid.
+   *
+   * @param {string} address - The address or ENS name to check
+   * @return {boolean} true if the address is valid, false otherwise
+   * @memberof SDK
+   */
+  async isValidETHAddress(address) {
+    if (!address) {
+      return false;
+    }
+
+    if (isAddress(address)) {
+      return true;
+    }
+
+    // attempt to to resolve address from ENS
+    try {
+      const ensResolvedAddress = await this.provider.resolveName(address);
+      if (!ensResolvedAddress) {
+        // resolving address failed.
+        return false;
+      }
+    } catch (error) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Uses bnc-notify to provide clean UI notifcations. Only possible in a browser environment.
    *
    * @todo Mimic {@link https://docs.blocknative.com/notify#transaction} for non-Ethereum chains.
@@ -650,52 +697,32 @@ export class SDK extends Subscribable {
   }
 
   /**
-   * returns true is the address is tracked
+   * Loads a TokenList by URL or returns the already loaded list. TokenLists persist across network
+   * and provider changes because they reorganize themselves accordingly. Each token in a token list
+   * is an instance of the ERC20 class and automatically tracks the balance of sdk.account.
    *
-   * @param {string} address
-   * @returns {boolean}
-   */
-  isTrackedAddress(address) {
-    if (isAddress(address)) {
-      return this._addresses.has(address.toLowerCase());
-    }
-
-    return false;
-  }
-
-  /**
-   * Checks if the address or ENS name is valid.
-   *
-   * @param {string} address - The address or ENS name to check
-   * @returns {boolean} true if the address is valid, false otherwise
+   * @param {string} url - url to load the tokenList from
+   * @return {TokenList}
    * @memberof SDK
    */
-  async isValidETHAddress(address) {
-    if (!address) {
-      return false;
+  async tokenList(url) {
+    const key = btoa(url.toLowerCase());
+
+    if (this._tokenLists[key]) {
+      await this._tokenLists[key].awaitInitialized;
+      return this._tokenLists[key];
     }
 
-    if (isAddress(address)) {
-      return true;
-    }
-
-    // attempt to to resolve address from ENS
-    try {
-      const ensResolvedAddress = await this.provider.resolveName(address);
-      if (!ensResolvedAddress) {
-        // resolving address failed.
-        return false;
-      }
-    } catch (error) {
-      return false;
-    }
-    return true;
+    this._tokenLists[key] = new TokenList(this, url);
+    await this._tokenLists[key].awaitInitialized;
+    return this._tokenLists[key];
   }
 
   /**
    * adds an address to the addresses set
    *
    * @param {string} address
+   * @memberof SDK
    */
   trackAddress(address) {
     validateIsAddress(address);
