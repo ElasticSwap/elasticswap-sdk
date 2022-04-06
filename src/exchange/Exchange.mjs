@@ -16,13 +16,13 @@ import { toBigNumber, toEthersBigNumber } from '../utils/utils.mjs';
 export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
     super(sdk, exchangeAddress);
-    this._baseTokenAddress = baseTokenAddress;
-    this._quoteTokenAddress = quoteTokenAddress;
-    this._baseToken = new ERC20(sdk, baseTokenAddress);
-    this._quoteToken = new ERC20(sdk, quoteTokenAddress);
+    this._baseTokenAddress = baseTokenAddress.toLowerCase();
+    this._quoteTokenAddress = quoteTokenAddress.toLowerCase();
+    this._baseToken = new ERC20(sdk, baseTokenAddress.toLowerCase());
+    this._quoteToken = new ERC20(sdk, quoteTokenAddress.toLowerCase());
     this._contract = sdk.contract({
       abi: ExchangeSolidity.abi,
-      address: exchangeAddress,
+      address: exchangeAddress.toLowerCase(),
     });
     this._errorHandling = new ErrorHandling('exchange');
   }
