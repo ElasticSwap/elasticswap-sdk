@@ -56,6 +56,7 @@
     "bignumber.js": "^9.0.1",
     "bnc-notify": "^1.9.1",
     "ethers": "^5.5.1",
+    "ethers-multicall": "^0.2.2",
     "is-plain-object": "^5.0.0",
     "rxjs": "^7.4.0"
   }

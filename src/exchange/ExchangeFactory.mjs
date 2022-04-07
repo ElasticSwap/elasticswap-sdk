@@ -5,7 +5,6 @@ import ExchangeFactoryContract from '@elasticswap/elasticswap/artifacts/src/cont
 import ErrorHandling from '../ErrorHandling.mjs';
 import Exchange from './Exchange.mjs';
 import QueryFilterable from '../QueryFilterable.mjs';
-import { toKey } from '../utils/utils.mjs';
 import { validateIsAddress } from '../utils/validations.mjs';
 
 /**
@@ -141,6 +140,7 @@ export default class ExchangeFactory extends QueryFilterable {
       return;
     }
 
+    /* eslint-disable-next-line consistent-return */
     return new Exchange(this.sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress);
   }
 

@@ -50,7 +50,7 @@ export default class Exchange extends ERC20 {
    * @returns {ethers.Contract} contract - An ethers.js Contract instance
    * @memberof ERC20
    */
-   get contract() {
+  get contract() {
     return this.constructor.contract(this.sdk, this.address);
   }
 
@@ -332,15 +332,21 @@ export default class Exchange extends ERC20 {
       throw this.errorHandling.error('TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM');
     }
 
-    const [baseTokenBalance, quoteTokenBalance, baseTokenAllowance, quoteTokenAllowance, baseTokenDecimals, quoteTokenDecimals] =
-      await Promise.all([
-        this.baseToken.balanceOf(this.sdk.account),
-        this.quoteToken.balanceOf(this.sdk.account),
-        this.baseToken.allowance(this.sdk.account, this.address),
-        this.quoteToken.allowance(this.sdk.account, this.address),
-        this.baseToken.decimals(),
-        this.quoteToken.decimals(),
-      ]);
+    const [
+      baseTokenBalance,
+      quoteTokenBalance,
+      baseTokenAllowance,
+      quoteTokenAllowance,
+      baseTokenDecimals,
+      quoteTokenDecimals,
+    ] = await Promise.all([
+      this.baseToken.balanceOf(this.sdk.account),
+      this.quoteToken.balanceOf(this.sdk.account),
+      this.baseToken.allowance(this.sdk.account, this.address),
+      this.quoteToken.allowance(this.sdk.account, this.address),
+      this.baseToken.decimals(),
+      this.quoteToken.decimals(),
+    ]);
 
     if ((await baseTokenBalance).lt(baseTokenQtyDesired)) {
       throw this.errorHandling.error('NOT_ENOUGH_BASE_TOKEN_BALANCE');
@@ -373,9 +379,7 @@ export default class Exchange extends ERC20 {
 
     console.log('PAYLOAD', payload);
 
-    return this._handleTransaction(
-      await this.contract.addLiquidity(...payload),
-    );
+    return this._handleTransaction(await this.contract.addLiquidity(...payload));
   }
 
   async removeLiquidity(

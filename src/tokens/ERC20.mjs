@@ -50,6 +50,16 @@ export default class ERC20 extends Base {
   }
 
   /**
+   * Returns the abi for the underlying contract
+   *
+   * @readonly
+   * @memberof ERC20
+   */
+  get abi() {
+    return ERC20Contract.abi;
+  }
+
+  /**
    * Returns the address of the contract
    *
    * @readonly
@@ -109,18 +119,25 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async decimals(overrides) {
-    if (isPOJO(overrides)) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
       return this.toNumber(
         await this.readonlyContract.decimals(this.sanitizeOverrides(overrides, true)),
       );
     }
 
-    if (this._decimals) {
+    // if the value is cached and this is not a multicall request, return it
+    if (this._decimals && !overrides?.multicall) {
       return this._decimals;
     }
 
-    this._decimals = this.toNumber(await this.readonlyContract.decimals());
+    // fetch the value from the network using multicall
+    this._decimals = this.toNumber(await this.sdk.multicall.enqueue(this.abi, this.address, 'decimals'));
+
+    // update subscribers
     this.touch();
+
+    // return the cached value
     return this._decimals;
   }
 
@@ -133,16 +150,23 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async name(overrides) {
-    if (isPOJO(overrides)) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
       return this.readonlyContract.name(this.sanitizeOverrides(overrides, true));
     }
 
-    if (this._name) {
+    // if the value is cached and this is not a multicall request, return it
+    if (this._name && !overrides?.multicall) {
       return this._name;
     }
 
-    this._name = await this.readonlyContract.name();
+    // fetch the value from the network using multicall and cache it
+    this._name = await this.sdk.multicall.enqueue(this.abi, this.address, 'name');
+
+    // update subscribers
     this.touch();
+
+    // return the cached value
     return this._name;
   }
 
@@ -155,16 +179,23 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async symbol(overrides) {
-    if (isPOJO(overrides)) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
       return this.readonlyContract.symbol(this.sanitizeOverrides(overrides, true));
     }
 
-    if (this._symbol) {
+    // if the value is cached and this is not a multicall request, return it
+    if (this._symbol && !overrides?.multicall) {
       return this._symbol;
     }
 
-    this._symbol = await this.readonlyContract.symbol();
+    // fetch the value from the network using multicall and cache it
+    this._symbol = await this.sdk.multicall.enqueue(this.abi, this.address, 'symbol');
+
+    // update subscribers
     this.touch();
+
+    // return the cached value
     return this._symbol;
   }
 
@@ -178,7 +209,8 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async totalSupply(overrides) {
-    if (isPOJO(overrides)) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
       const [decimals, totalSupply] = await Promise.all([
         this.decimals(this.sanitizeOverrides(overrides, true)),
         this.readonlyContract.totalSupply(this.sanitizeOverrides(overrides, true)),
@@ -187,17 +219,24 @@ export default class ERC20 extends Base {
       return this.toBigNumber(totalSupply, decimals);
     }
 
-    if (this._totalSupply) {
+    // if the value is cached and this is not a multicall request, return it
+    if (this._totalSupply && !overrides?.multicall) {
       return this._totalSupply;
     }
 
+    // fetch the value from the network using multicall
     const [decimals, totalSupply] = await Promise.all([
       this.decimals(),
-      this.readonlyContract.totalSupply(),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'totalSupply'),
     ]);
 
+    // update the local cache
     this._totalSupply = this.toBigNumber(totalSupply, decimals);
+
+    // update subscribers
     this.touch();
+
+    // return the cached value
     return this._totalSupply;
   }
 
@@ -212,11 +251,13 @@ export default class ERC20 extends Base {
    */
   async balanceOf(address, overrides) {
     validateIsAddress(address);
+    // track the address so we get eager loaded balance updates
     this.sdk.trackAddress(address);
 
     const addressLower = address.toLowerCase();
 
-    if (isPOJO(overrides)) {
+    // if we have overrides and it is not a multicall request, request the value from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
       const [decimals, balance] = await Promise.all([
         this.decimals(this.sanitizeOverrides(overrides, true)),
         this.readonlyContract.balanceOf(addressLower, this.sanitizeOverrides(overrides, true)),
@@ -225,17 +266,25 @@ export default class ERC20 extends Base {
       return this.toBigNumber(balance, decimals);
     }
 
-    if (balancesByContract[this.address][addressLower]) {
+    // return the cached value unless this is a multicall request
+    if (balancesByContract[this.address][addressLower] && !overrides?.multicall) {
       return balancesByContract[this.address][addressLower];
     }
 
+    // get decimals and balance using multicall
     const [decimals, balance] = await Promise.all([
       this.decimals(),
-      this.readonlyContract.balanceOf(addressLower),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'balanceOf', [addressLower]),
     ]);
 
+    // save balance
     balancesByContract[this.address][addressLower] = this.toBigNumber(balance, decimals);
+
+    // update subscribers
     this.touch();
+    console.log('touch', this.name);
+
+    // retrun balance
     return balancesByContract[this.address][addressLower];
   }
 
@@ -252,18 +301,31 @@ export default class ERC20 extends Base {
     validateIsAddress(ownerAddress);
     validateIsAddress(spenderAddress);
 
+    // track both addresses for eager balance loading
     this.sdk.trackAddress(ownerAddress);
     this.sdk.trackAddress(spenderAddress);
 
+    // overrides exist and not a multicall request, fetch directly from network
+    if (isPOJO(overrides) && !overrides.multicall) {
+      const [allowance, decimals] = await Promise.all([
+        this.readonlyContract.allowance(
+          ownerAddress,
+          spenderAddress,
+          this.sanitizeOverrides(overrides || {}, true),
+        ),
+        this.decimals(overrides),
+      ]);
+  
+      return this.toBigNumber(allowance, decimals);
+    }
+
+    // fetch from network using multicall
     const [allowance, decimals] = await Promise.all([
-      this.readonlyContract.allowance(
-        ownerAddress,
-        spenderAddress,
-        this.sanitizeOverrides(overrides || {}, true),
-      ),
-      this.decimals(overrides),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'allowance', [ownerAddress, spenderAddress]),
+      this.decimals(),
     ]);
 
+    // return allowance
     return this.toBigNumber(allowance, decimals);
   }
 
@@ -315,7 +377,7 @@ export default class ERC20 extends Base {
     );
   }
 
-  // TODO: really should use multicall for efficiency
+  // uses multicall to update all tracked address balances related to the event
   async _handleSupplyEvent(log) {
     const { args, event } = log;
 
@@ -324,19 +386,29 @@ export default class ERC20 extends Base {
 
     // Rebases require an update of all balances we care about
     if (event === 'Rebase') {
-      this.sdk.trackedAddresses.forEach((address) => {
-        this._updateBalance(address);
-      });
+      // take a local copy for efficiency
+      const trackedAddress = [ ...this.sdk.trackedAddresses ];
 
+      // trigger an update for each tracked address
+      for (let i = 0; i < trackedAddress.length; i+=1) {
+        this.balanceOf(trackedAddress[i], { multicall: true });
+      }
+
+      // no need to further process because all tracked addresses are queued for update
       return;
     }
 
+    // with non-rebase events any argument may be an address
+    const potentialAddresses = (args || []);
+    
     // update user balances for all tracked addresses and involved
-    (args || []).forEach((arg) => {
-      if (this.sdk.isTrackedAddress(arg)) {
-        this._updateBalance(arg);
+    for (let i = 0; i < potentialAddresses.length; i+=1) {
+      // isTrackedAddress filters out non-address values
+      if (this.sdk.isTrackedAddress(potentialAddresses[i])) {
+        console.log('Supply event', event, 'triggered balance update for', potentialAddresses[i]);
+        this.balanceOf(potentialAddresses[i], { multicall: true });
       }
-    });
+    }
   }
 
   // Takes the transaction hash and triggers a notification, waits to the transaction to be mined
@@ -370,19 +442,13 @@ export default class ERC20 extends Base {
 
       const handler = (event) => this._handleSupplyEvent(event);
 
-      SUPPLY_EVENTS.forEach((event) => {
+      SUPPLY_EVENTS.map((event) => {
         // if the contract supports this event
         if (cachedContracts[this.address].filters[event]) {
           // listen for the event to take place
           cachedContracts[this.address].on(cachedContracts[this.address].filters[event], handler);
         }
-      });
+      })
     });
-  }
-
-  async _updateBalance(address) {
-    // force update with blank overrides
-    balancesByContract[this.address][address.toLowerCase()] = this.balanceOf(address, {});
-    this.touch();
   }
 }

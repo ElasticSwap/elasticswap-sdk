@@ -10,6 +10,7 @@ import ErrorHandlingClass from './ErrorHandling.mjs';
 import ExchangeClass from './exchange/Exchange.mjs';
 import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
 import LocalStorageAdapterClass from './adapters/LocalStorageAdapter.mjs';
+import MulticallClass from './Multicall.mjs';
 import StakingPoolsClass from './staking/StakingPools.mjs';
 import StorageAdapterClass from './adapters/StorageAdapter.mjs';
 import SubscribableClass from './Subscribable.mjs';
@@ -98,6 +99,7 @@ export const ErrorHandling = ErrorHandlingClass;
 export const Exchange = ExchangeClass;
 export const ExchangeFactory = ExchangeFactoryClass;
 export const LocalStorageAdapter = LocalStorageAdapterClass;
+export const Multicall = MulticallClass;
 export const StakingPools = StakingPoolsClass;
 export const StorageAdapter = StorageAdapterClass;
 export const Subscribable = SubscribableClass;
@@ -277,6 +279,20 @@ export class SDK extends Subscribable {
    */
   get maxPriorityFeePerGas() {
     return this._maxPriorityFeePerGas || toBigNumber(0);
+  }
+
+  /**
+   * @readonly
+   * @returns {Multicall} - The Multicall wrapper instance
+   * @memberof SDK
+   */
+  get multicall() {
+    if (this._multicall) {
+      return this._multicall;
+    }
+
+    this._multicall = new Multicall(this);
+    return this._multicall;
   }
 
   /**
