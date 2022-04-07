@@ -19,6 +19,9 @@ class Token extends ERC20 {
   constructor(sdk, data) {
     super(sdk, data.address);
     this._data = data;
+
+    // replicate touches between this and the standard ERC20 instance from the sdk
+    this.sdk.erc20(this.address).subscribe(() => this.touch());
   }
 
   /**

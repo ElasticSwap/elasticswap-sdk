@@ -1,3 +1,5 @@
+/* eslint class-methods-use-this: 0 */
+
 import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' assert { type: 'json' };
 import Base from '../Base.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
@@ -132,10 +134,12 @@ export default class ERC20 extends Base {
     }
 
     // fetch the value from the network using multicall
-    this._decimals = this.toNumber(await this.sdk.multicall.enqueue(this.abi, this.address, 'decimals'));
+    this._decimals = this.toNumber(
+      await this.sdk.multicall.enqueue(this.abi, this.address, 'decimals'),
+    );
 
     // update subscribers
-    this.touch();
+    this.sdk.erc20(this.address).touch();
 
     // return the cached value
     return this._decimals;
@@ -164,7 +168,7 @@ export default class ERC20 extends Base {
     this._name = await this.sdk.multicall.enqueue(this.abi, this.address, 'name');
 
     // update subscribers
-    this.touch();
+    this.sdk.erc20(this.address).touch();
 
     // return the cached value
     return this._name;
@@ -193,7 +197,7 @@ export default class ERC20 extends Base {
     this._symbol = await this.sdk.multicall.enqueue(this.abi, this.address, 'symbol');
 
     // update subscribers
-    this.touch();
+    this.sdk.erc20(this.address).touch();
 
     // return the cached value
     return this._symbol;
@@ -234,7 +238,7 @@ export default class ERC20 extends Base {
     this._totalSupply = this.toBigNumber(totalSupply, decimals);
 
     // update subscribers
-    this.touch();
+    this.sdk.erc20(this.address).touch();
 
     // return the cached value
     return this._totalSupply;
@@ -281,7 +285,7 @@ export default class ERC20 extends Base {
     balancesByContract[this.address][addressLower] = this.toBigNumber(balance, decimals);
 
     // update subscribers
-    this.touch();
+    this.sdk.erc20(this.address).touch();
     console.log('touch', this.name);
 
     // retrun balance
@@ -315,13 +319,16 @@ export default class ERC20 extends Base {
         ),
         this.decimals(overrides),
       ]);
-  
+
       return this.toBigNumber(allowance, decimals);
     }
 
     // fetch from network using multicall
     const [allowance, decimals] = await Promise.all([
-      this.sdk.multicall.enqueue(this.abi, this.address, 'allowance', [ownerAddress, spenderAddress]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'allowance', [
+        ownerAddress,
+        spenderAddress,
+      ]),
       this.decimals(),
     ]);
 
@@ -387,10 +394,10 @@ export default class ERC20 extends Base {
     // Rebases require an update of all balances we care about
     if (event === 'Rebase') {
       // take a local copy for efficiency
-      const trackedAddress = [ ...this.sdk.trackedAddresses ];
+      const trackedAddress = [...this.sdk.trackedAddresses];
 
       // trigger an update for each tracked address
-      for (let i = 0; i < trackedAddress.length; i+=1) {
+      for (let i = 0; i < trackedAddress.length; i += 1) {
         this.balanceOf(trackedAddress[i], { multicall: true });
       }
 
@@ -399,10 +406,10 @@ export default class ERC20 extends Base {
     }
 
     // with non-rebase events any argument may be an address
-    const potentialAddresses = (args || []);
-    
+    const potentialAddresses = args || [];
+
     // update user balances for all tracked addresses and involved
-    for (let i = 0; i < potentialAddresses.length; i+=1) {
+    for (let i = 0; i < potentialAddresses.length; i += 1) {
       // isTrackedAddress filters out non-address values
       if (this.sdk.isTrackedAddress(potentialAddresses[i])) {
         console.log('Supply event', event, 'triggered balance update for', potentialAddresses[i]);
@@ -442,13 +449,14 @@ export default class ERC20 extends Base {
 
       const handler = (event) => this._handleSupplyEvent(event);
 
-      SUPPLY_EVENTS.map((event) => {
+      for (let i = 0; i < SUPPLY_EVENTS.length; i += 1) {
+        const event = SUPPLY_EVENTS[i];
         // if the contract supports this event
         if (cachedContracts[this.address].filters[event]) {
           // listen for the event to take place
           cachedContracts[this.address].on(cachedContracts[this.address].filters[event], handler);
         }
-      })
+      }
     });
   }
 }

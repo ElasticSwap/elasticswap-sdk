@@ -19,12 +19,8 @@ export default class Exchange extends ERC20 {
     super(sdk, exchangeAddress);
     this._baseTokenAddress = baseTokenAddress.toLowerCase();
     this._quoteTokenAddress = quoteTokenAddress.toLowerCase();
-    this._baseToken = new ERC20(sdk, baseTokenAddress.toLowerCase());
-    this._quoteToken = new ERC20(sdk, quoteTokenAddress.toLowerCase());
-    this._contract = sdk.contract({
-      abi: ExchangeSolidity.abi,
-      address: exchangeAddress.toLowerCase(),
-    });
+    this._baseToken = this.sdk.erc20(this.baseTokenAddress);
+    this._quoteToken = this.sdk.erc20(this.quoteTokenAddress);
     this._errorHandling = new ErrorHandling('exchange');
   }
 
@@ -404,7 +400,6 @@ export default class Exchange extends ERC20 {
       throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
     }
 
-    this._contract = this.confirmSigner(this.contract);
     const baseTokenQtyMinEBN = toEthersBigNumber(baseTokenQtyMin);
     const quoteTokenQtyMinEBN = toEthersBigNumber(quoteTokenQtyMin);
 
@@ -440,7 +435,6 @@ export default class Exchange extends ERC20 {
       throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
     }
 
-    this._contract = this.confirmSigner(this.contract);
     const baseTokenQtyEBN = toEthersBigNumber(baseTokenQtyBN);
     const quoteTokenQtyMinEBN = toEthersBigNumber(quoteTokenQtyMinBN);
     const txStatus = await this.contract.swapBaseTokenForQuoteToken(
@@ -473,7 +467,6 @@ export default class Exchange extends ERC20 {
       throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
     }
 
-    this._contract = this.confirmSigner(this.contract);
     const quoteTokenQtyEBN = toEthersBigNumber(quoteTokenQtyBN);
     const baseTokenQtyMinEBN = toEthersBigNumber(baseTokenQtyMinBN);
     const txStatus = await this.contract.swapQuoteTokenForBaseToken(

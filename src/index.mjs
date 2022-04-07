@@ -152,6 +152,9 @@ export class SDK extends Subscribable {
     // ETH / AVAX / native token balances
     this._balances = {};
 
+    // ERC20 contracts
+    this._erc20s = {};
+
     if (customFetch) {
       this._fetch = customFetch;
     } else if (typeof window !== 'undefined' && window && window.fetch) {
@@ -565,8 +568,14 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   erc20(address) {
-    validateIsAddress(address);
-    return new ERC20(this, address);
+    const lowerAddress = address.toLowerCase();
+    validateIsAddress(lowerAddress);
+    if (this._erc20s[lowerAddress]) {
+      return this._erc20s[lowerAddress];
+    }
+
+    this._erc20s[lowerAddress] = new ERC20(this, lowerAddress);
+    return this._erc20s[lowerAddress];
   }
 
   /**

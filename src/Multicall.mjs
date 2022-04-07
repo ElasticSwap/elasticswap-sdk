@@ -17,7 +17,7 @@ export default class Multicall extends Base {
     super(sdk);
     this._queue = [];
   }
-  
+
   get queue() {
     return this._queue || [];
   }
@@ -48,7 +48,7 @@ export default class Multicall extends Base {
     }
 
     // copy and clear queue
-    const calls = [ ...this.queue ];
+    const calls = [...this.queue];
     this._queue = [];
 
     // build up requests
