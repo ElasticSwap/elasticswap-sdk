@@ -238,9 +238,9 @@ export default class TokenList extends Cachable {
   _processData() {
     const tokens = {};
 
-    const data = (this._data.tokens || []);
+    const data = this._data.tokens || [];
 
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < data.length; i += 1) {
       const token = new Token(this.sdk, data[i]);
 
       // we're only interested in tokens on the current network

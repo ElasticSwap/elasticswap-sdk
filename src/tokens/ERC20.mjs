@@ -316,7 +316,9 @@ export default class ERC20 extends Base {
   }
 
   // TODO: really should use multicall for efficiency
-  async _handleSupplyEvent({ args, event }) {
+  async _handleSupplyEvent(log) {
+    const { args, event } = log;
+
     // update total supply
     this.totalSupply({});
 
@@ -330,7 +332,7 @@ export default class ERC20 extends Base {
     }
 
     // update user balances for all tracked addresses and involved
-    args.forEach((arg) => {
+    (args || []).forEach((arg) => {
       if (this.sdk.isTrackedAddress(arg)) {
         this._updateBalance(arg);
       }

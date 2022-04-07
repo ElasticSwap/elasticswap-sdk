@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import BigNumber from 'bignumber.js';
 
-import { isAddress, isFunction, isNumber, isPOJO } from './typeChecks.mjs';
-import { validateIsAddress, validateIsNumber, validateIsBigNumber } from './validations.mjs';
+import { isAddress, isBigNumber, isFunction, isNumber, isPOJO } from './typeChecks.mjs';
+import { validateIsAddress, validateIsNumber } from './validations.mjs';
 
 const prefix = '@elastic-swap/sdk';
 
@@ -35,7 +35,9 @@ export const amountFormatter = ({
     value = value.multipliedBy(10 ** decimalShift);
   }
 
-  validateIsBigNumber(value, { prefix: `${prefix} - amountFormatter` });
+  if (!isBigNumber(value)) {
+    return '0.'.padEnd(decimalPlaces + 2, '0');
+  }
 
   if (isNumber(maxDigits)) {
     let left = 0;

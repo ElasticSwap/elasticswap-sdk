@@ -12,6 +12,7 @@ import {
   calculateOutputAmountLessFees,
 } from '../utils/mathLib.mjs';
 import { toBigNumber, toEthersBigNumber } from '../utils/utils.mjs';
+import { validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
 
 export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
@@ -42,16 +43,39 @@ export default class Exchange extends ERC20 {
     });
   }
 
-  get exchangeAddress() {
+  /**
+   * @readonly
+   * @see {@link SDK#contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - An ethers.js Contract instance
+   * @memberof ERC20
+   */
+   get contract() {
+    return this.constructor.contract(this.sdk, this.address);
+  }
+
+  /**
+   * @alias address
+   * @readonly
+   * @memberof ERC20
+   */
+  get id() {
     return this.address;
   }
 
+  /**
+   * @readonly
+   * @see {@link SDK#contract}
+   * @see {@link https://docs.ethers.io/v5/api/contract/contract/}
+   * @returns {ethers.Contract} contract - A readonly ethers.js Contract instance
+   * @memberof ExchangeFactory
+   */
   get readonlyContract() {
     return this.constructor.contract(this.sdk, this.address, true);
   }
 
-  get ownerAddress() {
-    return this._ownerAddress;
+  get exchangeAddress() {
+    return this.address;
   }
 
   get baseTokenAddress() {
@@ -68,30 +92,6 @@ export default class Exchange extends ERC20 {
 
   get quoteToken() {
     return this._quoteToken;
-  }
-
-  get baseTokenBalance() {
-    return this.baseToken.balanceOf(this.sdk.account);
-  }
-
-  get quoteTokenBalance() {
-    return this.quoteToken.balanceOf(this.sdk.account);
-  }
-
-  get lpTokenBalance() {
-    return this.lpToken.balanceOf(this.sdk.account);
-  }
-
-  get baseTokenAllowance() {
-    return this.baseToken.allowance(this.sdk.account, this.address);
-  }
-
-  get quoteTokenAllowance() {
-    return this.quoteToken.allowance(this.sdk.account, this.address);
-  }
-
-  get lpTokenAllowance() {
-    return this.lpToken.allowance(this.sdk.account, this.address);
   }
 
   get liquidityFee() {
@@ -317,51 +317,65 @@ export default class Exchange extends ERC20 {
     expirationTimestamp,
     overrides = {},
   ) {
-    const baseTokenQtyDesiredBN = toBigNumber(baseTokenQtyDesired);
-    const quoteTokenQtyDesiredBN = toBigNumber(quoteTokenQtyDesired);
-    const baseTokenQtyMinBN = toBigNumber(baseTokenQtyMin);
-    const quoteTokenQtyMinBN = toBigNumber(quoteTokenQtyMin);
+    validateIsBigNumber(baseTokenQtyDesired);
+    validateIsBigNumber(quoteTokenQtyDesired);
+    validateIsBigNumber(baseTokenQtyMin);
+    validateIsBigNumber(quoteTokenQtyMin);
+    validateIsAddress(liquidityTokenRecipient);
+    validateIsAddress(this.sdk.account);
 
     if (expirationTimestamp < new Date().getTime() / 1000) {
       throw this.errorHandling.error('TIMESTAMP_EXPIRED');
     }
 
-    if (baseTokenQtyDesiredBN.lte(baseTokenQtyMinBN)) {
+    if (baseTokenQtyDesired.lte(baseTokenQtyMin)) {
       throw this.errorHandling.error('TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM');
     }
 
-    if ((await this.baseTokenBalance).lt(baseTokenQtyDesiredBN)) {
+    const [baseTokenBalance, quoteTokenBalance, baseTokenAllowance, quoteTokenAllowance, baseTokenDecimals, quoteTokenDecimals] =
+      await Promise.all([
+        this.baseToken.balanceOf(this.sdk.account),
+        this.quoteToken.balanceOf(this.sdk.account),
+        this.baseToken.allowance(this.sdk.account, this.address),
+        this.quoteToken.allowance(this.sdk.account, this.address),
+        this.baseToken.decimals(),
+        this.quoteToken.decimals(),
+      ]);
+
+    if ((await baseTokenBalance).lt(baseTokenQtyDesired)) {
       throw this.errorHandling.error('NOT_ENOUGH_BASE_TOKEN_BALANCE');
     }
 
-    if (quoteTokenQtyDesiredBN.lte(quoteTokenQtyMinBN)) {
+    if (quoteTokenQtyDesired.lte(quoteTokenQtyMin)) {
       throw this.errorHandling.error('TOKEN_QTY_DESIRED_LESS_OR_EQUAL_THAN_MINIMUM');
     }
 
-    if ((await this.quoteTokenBalance).lt(quoteTokenQtyDesiredBN)) {
+    if ((await quoteTokenBalance).lt(quoteTokenQtyDesired)) {
       throw this.errorHandling.error('NOT_ENOUGH_QUOTE_TOKEN_BALANCE');
     }
-    const baseTokenAllowanceBN = toBigNumber(await this.baseTokenAllowance);
-    const quoteTokenAllowanceBN = toBigNumber(await this.quoteTokenAllowance);
 
     if (
-      baseTokenAllowanceBN.lt(baseTokenQtyDesiredBN) ||
-      quoteTokenAllowanceBN.lt(quoteTokenQtyDesiredBN)
+      baseTokenAllowance.lt(baseTokenQtyDesired) ||
+      quoteTokenAllowance.lt(quoteTokenQtyDesired)
     ) {
       throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
     }
 
-    this._contract = this.confirmSigner(this.contract);
-    const txStatus = await this.contract.addLiquidity(
-      toEthersBigNumber(baseTokenQtyDesiredBN),
-      toEthersBigNumber(quoteTokenQtyDesiredBN),
-      toEthersBigNumber(baseTokenQtyMinBN),
-      toEthersBigNumber(quoteTokenQtyMinBN),
+    const payload = [
+      this.toEthersBigNumber(baseTokenQtyDesired, baseTokenDecimals),
+      this.toEthersBigNumber(quoteTokenQtyDesired, quoteTokenDecimals),
+      this.toEthersBigNumber(baseTokenQtyMin, baseTokenDecimals),
+      this.toEthersBigNumber(quoteTokenQtyMin, quoteTokenDecimals),
       liquidityTokenRecipient,
       expirationTimestamp,
       this.sanitizeOverrides(overrides),
+    ];
+
+    console.log('PAYLOAD', payload);
+
+    return this._handleTransaction(
+      await this.contract.addLiquidity(...payload),
     );
-    return txStatus;
   }
 
   async removeLiquidity(
@@ -465,5 +479,12 @@ export default class Exchange extends ERC20 {
       this.sanitizeOverrides(overrides),
     );
     return txStatus;
+  }
+
+  // wraps the transaction in a notification popup and resolves when it has been mined
+  async _handleTransaction(tx) {
+    this.sdk.notify(tx);
+    const receipt = await tx.wait(1);
+    return receipt;
   }
 }

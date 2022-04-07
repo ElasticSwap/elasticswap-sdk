@@ -6,7 +6,7 @@ import ErrorHandling from '../ErrorHandling.mjs';
 import Exchange from './Exchange.mjs';
 import QueryFilterable from '../QueryFilterable.mjs';
 import { toKey } from '../utils/utils.mjs';
-import { validateIsString, validateIsAddress } from '../utils/validations.mjs';
+import { validateIsAddress } from '../utils/validations.mjs';
 
 /**
  * Provides a wrapping interface for the ExchangeFactory contract.
@@ -87,17 +87,13 @@ export default class ExchangeFactory extends QueryFilterable {
    *
    * emit NewExchange(msg.sender, address(exchange));
    *
-   * @param {string} name - Name of the new exchange
-   * @param {string} symbol - Symbol for the exchange's token
    * @param {string} baseTokenAddress - Address of the base token
    * @param {string} quoteTokenAddress - Address of the quote token
    * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
    * @returns {Promise<ethers.TransactionResponse>}
    * @memberof ExchangeFactory
    */
-  async createNewExchange(name, symbol, baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    validateIsString(name);
-    validateIsString(symbol);
+  async createNewExchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
     validateIsAddress(baseTokenAddress);
     validateIsAddress(quoteTokenAddress);
 
@@ -115,8 +111,6 @@ export default class ExchangeFactory extends QueryFilterable {
 
     return this._handleTransaction(
       await this.contract.createNewExchange(
-        name,
-        symbol,
         baseTokenAddress,
         quoteTokenAddress,
         this.sanitizeOverrides(overrides),
@@ -134,23 +128,8 @@ export default class ExchangeFactory extends QueryFilterable {
    * @memberof ExchangeFactory
    */
   async exchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    const baseTokenAddressLower = baseTokenAddress.toLowerCase();
-    const quoteTokenAddressLower = quoteTokenAddress.toLowerCase();
-
-    validateIsAddress(baseTokenAddressLower);
-    validateIsAddress(quoteTokenAddressLower);
-
-    if (baseTokenAddressLower === ethers.constants.AddressZero) {
-      throw this._errorHandling.error('BASE_TOKEN_IS_ZERO_ADDRESS');
-    }
-
-    if (quoteTokenAddressLower === ethers.constants.AddressZero) {
-      throw this._errorHandling.error('QUOTE_TOKEN_IS_ZERO_ADDRESS');
-    }
-
-    if (baseTokenAddressLower === quoteTokenAddressLower) {
-      throw this._errorHandling.error('BASE_TOKEN_SAME_AS_QUOTE');
-    }
+    validateIsAddress(baseTokenAddress);
+    validateIsAddress(baseTokenAddress);
 
     const exchangeAddress = await this.exchangeAddressByTokenAddress(
       baseTokenAddress,
@@ -159,10 +138,10 @@ export default class ExchangeFactory extends QueryFilterable {
     );
 
     if (!exchangeAddress) {
-      throw this._errorHandling.error('INVALID_EXCHANGE');
+      return;
     }
 
-    return new Exchange(this.sdk, exchangeAddress, baseTokenAddressLower, quoteTokenAddressLower);
+    return new Exchange(this.sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress);
   }
 
   /**
@@ -176,15 +155,7 @@ export default class ExchangeFactory extends QueryFilterable {
    * @memberof ExchangeFactory
    */
   async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    const key = toKey(this.sdk.networkId, baseTokenAddress, quoteTokenAddress);
-
-    let exchangeAddress = await this.cache.get(key);
-
-    if (exchangeAddress) {
-      return exchangeAddress;
-    }
-
-    exchangeAddress = (
+    const exchangeAddress = (
       await this.contract.exchangeAddressByTokenAddress(
         baseTokenAddress,
         quoteTokenAddress,
@@ -195,8 +166,6 @@ export default class ExchangeFactory extends QueryFilterable {
     if (exchangeAddress === ethers.constants.AddressZero) {
       return undefined;
     }
-
-    this.cache.set(key, exchangeAddress);
 
     return exchangeAddress;
   }
