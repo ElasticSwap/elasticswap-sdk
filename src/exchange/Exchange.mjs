@@ -37,9 +37,14 @@ export default class Exchange extends ERC20 {
     Promise.all([
       this.sdk.multicall.enqueue(this.abi, this.address, 'baseToken'),
       this.sdk.multicall.enqueue(this.abi, this.address, 'quoteToken'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'decimals'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'name'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'symbol'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'totalSupply'),
     ]).then(([baseToken, quoteToken]) => {
-      this._baseTokenAddress = baseToken;
-      this._quoteTokenAddress = quoteToken;
+      this._baseTokenAddress = baseToken.toLowerCase();
+      this._quoteTokenAddress = quoteToken.toLowerCase();
+      this.touch();
       // load all the core data
       this.baseToken.decimals();
       this.baseToken.name();
@@ -460,17 +465,13 @@ export default class Exchange extends ERC20 {
   // CALCULATIONS
 
   async calculateBaseTokenQty(quoteTokenQty, baseTokenQtyMin) {
-    const [
-      baseTokenDecimals,
-      baseTokenReserveQty,
-      liquidityFeeInBasisPoints,
-      internalBalances,
-    ] = await Promise.all([
-      this.baseToken.decimals(),
-      this.baseToken.balanceOf(this.address),
-      this.TOTAL_LIQUIDITY_FEE(),
-      this.internalBalances(),
-    ]);
+    const [baseTokenDecimals, baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] =
+      await Promise.all([
+        this.baseToken.decimals(),
+        this.baseToken.balanceOf(this.address),
+        this.TOTAL_LIQUIDITY_FEE(),
+        this.internalBalances(),
+      ]);
 
     return calculateBaseTokenQty(
       quoteTokenQty,
