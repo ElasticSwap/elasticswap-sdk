@@ -14,6 +14,7 @@ import StakingPoolsClass from './staking/StakingPools.mjs';
 import StorageAdapterClass from './adapters/StorageAdapter.mjs';
 import SubscribableClass from './Subscribable.mjs';
 import TokenListClass from './tokens/TokenList.mjs';
+import TokensByAddressClass from './tokens/TokensByAddress.mjs';
 
 import {
   areArraysEqual,
@@ -115,6 +116,7 @@ export const StakingPools = StakingPoolsClass;
 export const StorageAdapter = StorageAdapterClass;
 export const Subscribable = SubscribableClass;
 export const TokenList = TokenListClass;
+export const TokensByAddress = TokensByAddressClass;
 
 /**
  * Primary class. All things extend from here. SDK proxies ethers.js to provide an interface for
@@ -403,11 +405,34 @@ export class SDK extends Subscribable {
 
   /**
    * @readonly
-   * @returns {Array<string>} - An array of addresses we track,
+   * @returns {Array<string>} - An array of addresses we track
    * @memberof SDK
    */
   get trackedAddresses() {
     return this._addresses.values();
+  }
+
+  /**
+   * @readonly
+   * @returns {Array<TokenList>} - An array of token lists that have been loaded
+   * @memberof SDK
+   */
+  get tokenLists() {
+    return this._tokenLists || [];
+  }
+
+  /**
+   * @readonly
+   * @returns {TokensByAddress}
+   * @memberof SDK
+   */
+  get tokensByAddress() {
+    if (this._tokensByAddress) {
+      return this._tokensByAddress;
+    }
+
+    this._tokensByAddress = new TokensByAddress(this);
+    return this._tokensByAddress;
   }
 
   /**

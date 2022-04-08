@@ -189,6 +189,17 @@ export default class ExchangeFactory extends Cachable {
   }
 
   /**
+   * Returns the cached version of an exchange if it exists. This may not be 100% accurate. For
+   * "the truth", {@see {@link ExchangeFactory#isValidExchange}}.
+   *
+   * @param {string} address
+   * @memberof ExchangeFactory
+   */
+  exchangeByAddress(address) {
+    return exchanges[this.address][address?.toLowerCase()];
+  }
+
+  /**
    * Gets the address of the exchange for a token pair. Returns nil if no exchange is available for
    * the requested pair. Stores addresses in the cache to speed up future loads. Uses multicall
    * to look up missing exchange addresses. This is a bit different than the direct method on chain
@@ -281,6 +292,60 @@ export default class ExchangeFactory extends Cachable {
 
     // return the cached value
     return this._feeAddress;
+  }
+
+  /**
+   * Returns true if the address is an exchange deployed by this factory
+   *
+   * @param {string} address
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @return {Promise<bool>}
+   * @memberof ExchangeFactory
+   */
+  async isValidExchange(address, overrides) {
+    validateIsAddress(address);
+
+    const exchangeAddress = address.toLowerCase();
+
+    // if there are overrides, ask the chain directly
+    if (isPOJO(overrides)) {
+      return this.readonlyContract.isValidExchange(exchangeAddress);
+    }
+
+    // if there's a cached exchange object, the address is a valid exchange
+    if (exchanges[this.address][exchangeAddress]) {
+      return true;
+    }
+
+    // fetch from the network using multicall
+    const isValidExchange = await this.sdk.multicall.enqueue(
+      this.abi,
+      this.address,
+      'isValidExchange',
+      [exchangeAddress],
+    );
+
+    // if the address is a valid exchange, load it into the cache
+    if (isValidExchange) {
+      const exchangeContract = Exchange.contract(this.sdk, exchangeAddress, true);
+
+      // get the tokens
+      const [baseTokenAddress, quoteTokenAddress] = await Promise.all([
+        exchangeContract.baseTokenAddress(),
+        exchangeContract.quoteTokenAddress(),
+      ]);
+
+      // initialize the exchange
+      exchanges[this.address][exchangeAddress] = new Exchange(
+        this.sdk,
+        exchangeAddress,
+        baseTokenAddress,
+        quoteTokenAddress,
+      );
+    }
+
+    // return the result
+    return isValidExchange;
   }
 
   // wraps the transaction in a notification popup and resolves when it has been mined
