@@ -149,7 +149,9 @@ export default class ExchangeFactory extends Cachable {
    */
   async exchange(baseTokenAddress, quoteTokenAddress, overrides) {
     validateIsAddress(baseTokenAddress);
-    validateIsAddress(baseTokenAddress);
+    validateIsAddress(quoteTokenAddress);
+
+    console.log('exchange requested', baseTokenAddress, quoteTokenAddress);
 
     // find the address of the exchange
     const exchangeAddress = await this.exchangeAddressByTokenAddress(
@@ -160,6 +162,7 @@ export default class ExchangeFactory extends Cachable {
 
     // there is no exchange yet
     if (!exchangeAddress) {
+      console.log('No exchange for', baseTokenAddress, quoteTokenAddress);
       return;
     }
 
@@ -188,7 +191,8 @@ export default class ExchangeFactory extends Cachable {
   /**
    * Gets the address of the exchange for a token pair. Returns nil if no exchange is available for
    * the requested pair. Stores addresses in the cache to speed up future loads. Uses multicall
-   * to look up missing exchange addresses.
+   * to look up missing exchange addresses. This is a bit different than the direct method on chain
+   * in that it will look for pairs in both configurations, b <> q or q <> b.
    *
    * @param {string} baseTokenAddress - Address of the base token
    * @param {string} quoteTokenAddress - Address of the quote token
@@ -199,6 +203,7 @@ export default class ExchangeFactory extends Cachable {
   async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides) {
     // if there are overrides and this is not a multicall request, fetch directly from the network
     if (isPOJO(overrides) && !overrides.multicall) {
+      console.log('overrides', overrides);
       return this.readonlyContract.exchangeAddressByTokenAddress(
         baseTokenAddress,
         quoteTokenAddress,
@@ -214,19 +219,28 @@ export default class ExchangeFactory extends Cachable {
 
     // if the value is cached and this is not a multicall request, return it
     if (this.cache.has(key) && !overrides?.multicall) {
-      return this.cache.get(key);
+      const cached = this.cache.get(key);
+      console.log('cached', cached);
     }
 
     // fetch the value from the network using multicall and cache it
-    const exchangeAddress = await this.sdk.multicall.enqueue(
-      this.abi,
-      this.address,
-      'exchangeAddressByTokenAddress',
-      [baseTokenAddress, quoteTokenAddress],
-    );
+    const addresses = await Promise.all([
+      this.sdk.multicall.enqueue(this.abi, this.address, 'exchangeAddressByTokenAddress', [
+        baseTokenAddress,
+        quoteTokenAddress,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'exchangeAddressByTokenAddress', [
+        quoteTokenAddress,
+        baseTokenAddress,
+      ]),
+    ]);
+
+    const exchangeAddress = addresses.find((addy) => addy !== ethers.constants.AddressZero);
+
+    console.log('exchangeAddress', exchangeAddress, addresses);
 
     // we don't have an exchange for that address
-    if (exchangeAddress === ethers.constants.AddressZero) {
+    if (!exchangeAddress) {
       return undefined;
     }
 
