@@ -22,7 +22,17 @@ export const isString = (thing) => typeof thing === 'string' || thing instanceof
 
 // Blockchain
 
-export const isAddress = (thing) => ethers.utils.isAddress(thing);
+const addressValidity = {};
+
+export const isAddress = (thing) => {
+  // ethers is using some heavy computing for this, so caching results
+  if (addressValidity[thing] !== undefined) {
+    return addressValidity[thing];
+  }
+
+  addressValidity[thing] = ethers.utils.isAddress(thing);
+  return addressValidity[thing];
+};
 
 export const isTransactionHash = (thing) =>
   thing && isString(thing) && ethers.utils.isHexString(thing) && thing.length === 66;

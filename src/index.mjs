@@ -6,7 +6,6 @@ import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/cont
 import { ethers } from 'ethers';
 
 import ERC20Class from './tokens/ERC20.mjs';
-import ErrorHandlingClass from './ErrorHandling.mjs';
 import ExchangeClass from './exchange/Exchange.mjs';
 import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
 import LocalStorageAdapterClass from './adapters/LocalStorageAdapter.mjs';
@@ -15,6 +14,14 @@ import StakingPoolsClass from './staking/StakingPools.mjs';
 import StorageAdapterClass from './adapters/StorageAdapter.mjs';
 import SubscribableClass from './Subscribable.mjs';
 import TokenListClass from './tokens/TokenList.mjs';
+
+import {
+  areArraysEqual,
+  areObjectsEqual,
+  areFunctionsEqual,
+  arePrimativesEqual,
+  isEqual,
+} from './utils/equality.mjs';
 
 import {
   amountFormatter,
@@ -61,10 +68,15 @@ const FEE_DATA_INTERVAL = 1000;
 
 export const utils = {
   amountFormatter,
+  areArraysEqual,
+  areFunctionsEqual,
+  areObjectsEqual,
+  arePrimativesEqual,
   isAddress,
   isArray,
   isBigNumber,
   isDate,
+  isEqual,
   isFunction,
   isNumber,
   isPOJO,
@@ -95,7 +107,6 @@ export const utils = {
 };
 
 export const ERC20 = ERC20Class;
-export const ErrorHandling = ErrorHandlingClass;
 export const Exchange = ExchangeClass;
 export const ExchangeFactory = ExchangeFactoryClass;
 export const LocalStorageAdapter = LocalStorageAdapterClass;
@@ -653,7 +664,7 @@ export class SDK extends Subscribable {
 
         const txSuccess = (finalHash) => {
           update({
-            autoDismiss: 2000,
+            autoDismiss: 4000,
             type: 'success',
             message: `Transaction ${shortenHash(finalHash)} succeeded.`,
           });
@@ -670,14 +681,15 @@ export class SDK extends Subscribable {
               .catch((err) => handleError(err));
           } else {
             update({
-              autoDismiss: 2000,
+              autoDismiss: 4000,
               type: 'error',
               message: `Transaction ${shortenHash(replacement.hash)} failed.`,
             });
           }
         };
 
-        wait(1)
+        // wait 2 blocks because some networks lag on read
+        wait(2)
           .then(() => txSuccess(hash))
           .catch((err) => handleError(err));
 

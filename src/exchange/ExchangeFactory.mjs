@@ -2,9 +2,10 @@
 
 import { ethers } from 'ethers';
 import ExchangeFactoryContract from '@elasticswap/elasticswap/artifacts/src/contracts/ExchangeFactory.sol/ExchangeFactory.json';
-import ErrorHandling from '../ErrorHandling.mjs';
 import Exchange from './Exchange.mjs';
-import QueryFilterable from '../QueryFilterable.mjs';
+import Cachable from '../Cachable.mjs';
+import { isPOJO } from '../utils/typeChecks.mjs';
+import { toKey } from '../utils/utils.mjs';
 import { validateIsAddress } from '../utils/validations.mjs';
 
 /**
@@ -12,14 +13,13 @@ import { validateIsAddress } from '../utils/validations.mjs';
  *
  * @export
  * @class ExchangeFactory
- * @extends {QueryFilterable}
+ * @extends {Cachable}
  */
-export default class ExchangeFactory extends QueryFilterable {
+export default class ExchangeFactory extends Cachable {
   constructor(sdk, address) {
     super(sdk);
     this._address = address;
-
-    this._errorHandling = new ErrorHandling('exchangeFactory');
+    this._exchanges = {};
   }
 
   /**
@@ -63,6 +63,16 @@ export default class ExchangeFactory extends QueryFilterable {
   }
 
   /**
+   * Returns the abi for the underlying contract
+   *
+   * @readonly
+   * @memberof ExchangeFactory
+   */
+  get abi() {
+    return ExchangeFactoryContract.abi;
+  }
+
+  /**
    * Returns the address of the contract
    *
    * @readonly
@@ -96,25 +106,20 @@ export default class ExchangeFactory extends QueryFilterable {
     validateIsAddress(baseTokenAddress);
     validateIsAddress(quoteTokenAddress);
 
-    if (baseTokenAddress.toLowerCase() === ethers.constants.AddressZero) {
-      throw this._errorHandling.error('BASE_TOKEN_IS_ZERO_ADDRESS');
-    }
-
-    if (quoteTokenAddress.toLowerCase() === ethers.constants.AddressZero) {
-      throw this._errorHandling.error('QUOTE_TOKEN_IS_ZERO_ADDRESS');
-    }
-
-    if (baseTokenAddress.toLowerCase() === quoteTokenAddress.toLowerCase()) {
-      throw this._errorHandling.error('BASE_TOKEN_SAME_AS_QUOTE');
-    }
-
-    return this._handleTransaction(
+    // create the exchange
+    const receipt = this._handleTransaction(
       await this.contract.createNewExchange(
         baseTokenAddress,
         quoteTokenAddress,
         this.sanitizeOverrides(overrides),
       ),
     );
+
+    // load the exchange object into the local cache
+    await this.exchange(baseTokenAddress, quoteTokenAddress);
+
+    // return the receipt
+    return receipt;
   }
 
   /**
@@ -126,48 +131,93 @@ export default class ExchangeFactory extends QueryFilterable {
    * @return {*}
    * @memberof ExchangeFactory
    */
-  async exchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
+  async exchange(baseTokenAddress, quoteTokenAddress, overrides) {
     validateIsAddress(baseTokenAddress);
     validateIsAddress(baseTokenAddress);
 
+    // find the address of the exchange
     const exchangeAddress = await this.exchangeAddressByTokenAddress(
       baseTokenAddress,
       quoteTokenAddress,
       overrides,
     );
 
+    // there is no exchange yet
     if (!exchangeAddress) {
       return;
     }
 
+    // look for the locally cached existing exchange
+    if (this._exchanges[exchangeAddress]) {
+      /* eslint-disable-next-line consistent-return */
+      return this._exchanges[exchangeAddress];
+    }
+
+    // instantiate a new exchange instance
+    this._exchanges[exchangeAddress] = new Exchange(
+      this.sdk,
+      exchangeAddress,
+      baseTokenAddress,
+      quoteTokenAddress,
+    );
+
+    // update subscribers
+    this.touch();
+
+    // return the new instance
     /* eslint-disable-next-line consistent-return */
-    return new Exchange(this.sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress);
+    return this._exchanges[exchangeAddress];
   }
 
   /**
    * Gets the address of the exchange for a token pair. Returns nil if no exchange is available for
-   * the requested pair.
+   * the requested pair. Stores addresses in the cache to speed up future loads. Uses multicall
+   * to look up missing exchange addresses.
    *
    * @param {string} baseTokenAddress - Address of the base token
    * @param {string} quoteTokenAddress - Address of the quote token
-   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @param {Object} [overrides] - @see {@link Base#sanitizeOverrides}
    * @returns {Promise<string>}
    * @memberof ExchangeFactory
    */
-  async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    const exchangeAddress = (
-      await this.contract.exchangeAddressByTokenAddress(
+  async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
+      return this.readonlyContract.exchangeAddressByTokenAddress(
         baseTokenAddress,
         quoteTokenAddress,
         this.sanitizeOverrides(overrides, true),
-      )
-    ).toLowerCase();
+      );
+    }
 
+    // cache key
+    const key = toKey(
+      ...[baseTokenAddress, quoteTokenAddress].map((addy) => addy.toLowerCase()).sort(),
+    );
+
+    // if the value is cached and this is not a multicall request, return it
+    if (this.cache.has(key) && !overrides?.multicall) {
+      return this.cache.get(key);
+    }
+
+    // fetch the value from the network using multicall and cache it
+    const exchangeAddress = await this.sdk.multicall.enqueue(
+      this.abi,
+      this.address,
+      'exchangeAddressByTokenAddress',
+      [baseTokenAddress, quoteTokenAddress],
+    );
+
+    // we don't have an exchange for that address
     if (exchangeAddress === ethers.constants.AddressZero) {
       return undefined;
     }
 
-    return exchangeAddress;
+    // cache the address
+    this.cache.set(key, exchangeAddress.toLowerCase());
+
+    // retrun the address
+    return this.cache.get(key);
   }
 
   /**
@@ -177,16 +227,35 @@ export default class ExchangeFactory extends QueryFilterable {
    * @returns {Promise<string>}
    * @memberof ExchangeFactory
    */
-  async feeAddress(overrides = {}) {
-    return (
-      await this.readonlyContract.feeAddress(this.sanitizeOverrides(overrides, true))
+  async feeAddress(overrides) {
+    // if there are overrides and this is not a multicall request, fetch directly from the network
+    if (isPOJO(overrides) && !overrides.multicall) {
+      return (
+        await this.readonlyContract.feeAddress(this.sanitizeOverrides(overrides, true))
+      ).toLowerCase();
+    }
+
+    // if the value is cached and this is not a multicall request, return it
+    if (this._feeAddress && !overrides?.multicall) {
+      return this._feeAddress;
+    }
+
+    // fetch the value from the network using multicall and cache it
+    this._feeAddress = (
+      await this.sdk.multicall.enqueue(this.abi, this.address, 'feeAddress')
     ).toLowerCase();
+
+    // update subscribers
+    this.touch();
+
+    // return the cached value
+    return this._feeAddress;
   }
 
   // wraps the transaction in a notification popup and resolves when it has been mined
   async _handleTransaction(tx) {
     this.sdk.notify(tx);
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait(2);
     return receipt;
   }
 }

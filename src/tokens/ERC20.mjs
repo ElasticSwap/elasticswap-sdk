@@ -422,7 +422,7 @@ export default class ERC20 extends Base {
   // and the returns the TransactionReceipt.
   async _handleTransaction(tx) {
     this.sdk.notify(tx);
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait(2);
     return receipt;
   }
 
