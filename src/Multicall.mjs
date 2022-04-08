@@ -3,6 +3,7 @@ import { Contract, Provider } from 'ethers-multicall';
 import Base from './Base.mjs';
 
 const TIME_TO_CALL = 50; // time until the requests are auto-called
+const MAX_REQUESTS_PER_CALL = 10;
 
 /**
  * A lightweight wrapper for ethers-multicall which allows for collection of many requests
@@ -35,44 +36,65 @@ export default class Multicall extends Base {
   /**
    * Processes all currently queued requests.
    *
-   * @return {Array<*>} - An array of the results
+   * @return {number} - The number of queued requests processed.
    * @memberof Multicall
    */
   async call() {
+    let counter = 0;
+
     // reset the auto-update timer
     clearTimeout(this._autoCallPid);
 
     // nothing to ask for
     if (this.queue.length === 0) {
-      return [];
+      return counter;
+    }
+
+    const handler = async (calls) => {
+      // build up requests
+      const requests = calls.map((call) => {
+        const { abi, address, args, funcName } = call;
+        const contract = new Contract(address, abi);
+        return contract[funcName](...args);
+      });
+
+      // fetch results from the blockchain
+      this.provider.all(requests)
+        .then((results) => {
+          // resolve each request's promise with its result
+          for (let i = 0; i < results.length; i += 1) {
+            calls[i].resolve(results[i]);
+          }
+        })
+        .catch((error) => {
+          // if we error, process the requests individually so only the one with an error fails
+          console.error('MULTICALL ERROR', error.message);
+          console.warn('MULTICALL FULL ERROR', error);
+
+          for (let i = 0; i < calls.length; i += 1) {
+            const { abi, address, args, funcName, resolve, reject } = calls[i];
+            this.sdk.contract({ abi, address, readonly: true })[funcName](...args).then(resolve, reject);
+          }
+        });
     }
 
     // copy and clear queue
-    const calls = [...this.queue];
-    this._queue = [];
+    let nextItem = this._queue.shift();
+    let stack = [];
 
-    // build up requests
-    const requests = calls.map(({ abi, address, args, funcName }) => {
-      const contract = new Contract(address, abi);
-      return contract[funcName](...args);
-    });
+    do {
+      stack.push(nextItem);
+      counter += 1;
 
-    let results = [];
-
-    // fetch results from the blockchain
-    results = await this.provider.all(requests).catch((error) => {
-      console.error('MULTICALL ERROR', error);
-      for (let i = 0; i < requests.length; i += 1) {
-        calls[i].reject(error);
+      if (stack.length === MAX_REQUESTS_PER_CALL) {
+        handler([...stack]);
+        stack = [];
       }
-    });
+    } while ((nextItem = this._queue.shift()) && !!nextItem);
 
-    // resolve each request's promise with its result
-    for (let i = 0; i < results.length; i += 1) {
-      calls[i].resolve(results[i]);
-    }
-
-    return results;
+    handler(stack);
+    
+    return counter;
   }
 
   /**

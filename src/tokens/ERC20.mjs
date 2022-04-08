@@ -276,9 +276,10 @@ export default class ERC20 extends Base {
     }
 
     // get decimals and balance using multicall
-    const [decimals, balance] = await Promise.all([
+    const [decimals, balance, name] = await Promise.all([
       this.decimals(),
       this.sdk.multicall.enqueue(this.abi, this.address, 'balanceOf', [addressLower]),
+      this.name(),
     ]);
 
     // save balance
@@ -286,7 +287,7 @@ export default class ERC20 extends Base {
 
     // update subscribers
     this.sdk.erc20(this.address).touch();
-    console.log('touch', this.name);
+    console.log('touch', name);
 
     // retrun balance
     return balancesByContract[this.address][addressLower];
