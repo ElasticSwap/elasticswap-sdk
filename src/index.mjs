@@ -463,12 +463,15 @@ export class SDK extends Subscribable {
 
     const network = await provider.getNetwork();
 
+    // if the network is changing, reset the cached factories and staking pools
+    if (this.networkId !== network.chainId) {
+      delete this._exchangeFactory;
+      delete this._stakingPools;
+    }
+
     this._provider = provider;
     this._networkId = network.chainId;
     this._networkName = network.name;
-
-    delete this._exchangeFactory;
-    delete this._stakingPools;
 
     await this._listenToChain().catch((errors) => {
       console.error('@elasticswap/sdk: error switching networks', errors);
@@ -496,13 +499,16 @@ export class SDK extends Subscribable {
       signer.provider.getNetwork(),
     ]);
 
+    // if the network is changing, reset the cached factories and staking pools
+    if (this.networkId !== network.chainId) {
+      delete this._exchangeFactory;
+      delete this._stakingPools;
+    }
+
     this._account = newAccount;
     this._signer = signer;
     this._networkId = network.chainId;
     this._networkName = network.name;
-
-    delete this._exchangeFactory;
-    delete this._stakingPools;
 
     this.balanceOf(this.account);
 
