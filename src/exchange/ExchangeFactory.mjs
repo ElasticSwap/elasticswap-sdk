@@ -8,6 +8,10 @@ import { isPOJO } from '../utils/typeChecks.mjs';
 import { toKey } from '../utils/utils.mjs';
 import { validateIsAddress } from '../utils/validations.mjs';
 
+// We don't need this data to persist across loads but we would like it to persist across network
+// changes.
+const exchanges = {};
+
 /**
  * Provides a wrapping interface for the ExchangeFactory contract.
  *
@@ -18,8 +22,10 @@ import { validateIsAddress } from '../utils/validations.mjs';
 export default class ExchangeFactory extends Cachable {
   constructor(sdk, address) {
     super(sdk);
-    this._address = address;
-    this._exchanges = {};
+    this._address = address.toLowerCase();
+    if (!exchanges[this.address]) {
+      exchanges[this.address] = {};
+    }
   }
 
   /**
@@ -92,6 +98,16 @@ export default class ExchangeFactory extends Cachable {
   }
 
   /**
+   * Returns the currently loaded exchange objects
+   *
+   * @readonly
+   * @memberof ExchangeFactory
+   */
+  get exchanges() {
+    return Object.values(exchanges[this.address] || {});
+  }
+
+  /**
    * Creates a new exchange for a token pair
    *
    * emit NewExchange(msg.sender, address(exchange));
@@ -148,13 +164,13 @@ export default class ExchangeFactory extends Cachable {
     }
 
     // look for the locally cached existing exchange
-    if (this._exchanges[exchangeAddress]) {
+    if (exchanges[this.address][exchangeAddress]) {
       /* eslint-disable-next-line consistent-return */
-      return this._exchanges[exchangeAddress];
+      return exchanges[this.address][exchangeAddress];
     }
 
     // instantiate a new exchange instance
-    this._exchanges[exchangeAddress] = new Exchange(
+    exchanges[this.address][exchangeAddress] = new Exchange(
       this.sdk,
       exchangeAddress,
       baseTokenAddress,
@@ -166,7 +182,7 @@ export default class ExchangeFactory extends Cachable {
 
     // return the new instance
     /* eslint-disable-next-line consistent-return */
-    return this._exchanges[exchangeAddress];
+    return exchanges[this.address][exchangeAddress];
   }
 
   /**
@@ -193,6 +209,7 @@ export default class ExchangeFactory extends Cachable {
     // cache key
     const key = toKey(
       ...[baseTokenAddress, quoteTokenAddress].map((addy) => addy.toLowerCase()).sort(),
+      this.sdk.networkHex,
     );
 
     // if the value is cached and this is not a multicall request, return it
