@@ -3,12 +3,15 @@
 import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' assert { type: 'json' };
 import Base from '../Base.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
+import { toKey } from '../utils/utils.mjs';
 import { validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
 
+const APPROVAL_EVENT = 'Approval';
 const SUPPLY_EVENTS = ['AddLiquidity', 'Rebase', 'RemoveLiquidity', 'Swap', 'Transfer'];
 
 // We track these outside of the instance so that multiple instances don't create cascading
 // subscriptions problems.
+const allowancesByContract = {};
 const balancesByContract = {};
 const cachedContracts = {};
 const contractSubscriptions = {};
@@ -25,6 +28,10 @@ export default class ERC20 extends Base {
     super(sdk);
     validateIsAddress(address);
     this._address = address.toLowerCase();
+
+    if (!allowancesByContract[this._address]) {
+      allowancesByContract[this._address] = {};
+    }
 
     if (!balancesByContract[this._address]) {
       balancesByContract[this._address] = {};
@@ -276,10 +283,9 @@ export default class ERC20 extends Base {
     }
 
     // get decimals and balance using multicall
-    const [decimals, balance, name] = await Promise.all([
+    const [decimals, balance] = await Promise.all([
       this.decimals(),
       this.sdk.multicall.enqueue(this.abi, this.address, 'balanceOf', [addressLower]),
-      this.name(),
     ]);
 
     // save balance
@@ -287,14 +293,16 @@ export default class ERC20 extends Base {
 
     // update subscribers
     this.sdk.erc20(this.address).touch();
-    console.log('touch', name);
 
-    // retrun balance
+    // return balance
     return balancesByContract[this.address][addressLower];
   }
 
   /**
-   * Returns the amount of the token that spender is allowed to transfer from owner
+   * Returns the amount of the token that spender is allowed to transfer from owner. This method
+   * returns a cached version when possible. Any supply chain events cause this cached value to be
+   * updated. If overrides are present, the cache will be ignored and the value obtained from the
+   * network.
    *
    * @param {string} ownerAddress - the owner of the token
    * @param {string} spenderAddress - the spender of the token
@@ -324,7 +332,14 @@ export default class ERC20 extends Base {
       return this.toBigNumber(allowance, decimals);
     }
 
-    // fetch from network using multicall
+    const key = toKey(ownerAddress, spenderAddress);
+
+    // return the cached value unless this is a multicall request
+    if (allowancesByContract[this.address][key] && !overrides?.multicall) {
+      return allowancesByContract[this.address][key];
+    }
+
+    // get decimals and balance using multicall
     const [allowance, decimals] = await Promise.all([
       this.sdk.multicall.enqueue(this.abi, this.address, 'allowance', [
         ownerAddress,
@@ -333,8 +348,14 @@ export default class ERC20 extends Base {
       this.decimals(),
     ]);
 
-    // return allowance
-    return this.toBigNumber(allowance, decimals);
+    // save balance
+    allowancesByContract[this.address][key] = this.toBigNumber(allowance, decimals);
+
+    // update subscribers
+    this.sdk.erc20(this.address).touch();
+
+    // retrun balance
+    return allowancesByContract[this.address][key];
   }
 
   /**
@@ -352,13 +373,18 @@ export default class ERC20 extends Base {
 
     this.sdk.trackAddress(spenderAddress);
 
-    return this._handleTransaction(
+    const result = this._handleTransaction(
       await this.contract.approve(
         spenderAddress,
         this.toEthersBigNumber(amount, await this.decimals()),
         this.sanitizeOverrides(overrides),
       ),
     );
+
+    // update the allowance before returning
+    await this.allowance(this.sdk.account, spenderAddress, { multicall: true });
+
+    return result;
   }
 
   /**
@@ -385,15 +411,41 @@ export default class ERC20 extends Base {
     );
   }
 
+  // update the approval cache if we care about the owner or spender
+  async _handleApprovalEvent(log) {
+    if (log.event !== APPROVAL_EVENT) {
+      return; // ignore
+    }
+
+    // console.log('APPROVAL', log.event, log);
+
+    const { args } = log;
+    const { owner, spender } = args;
+
+    if (this.sdk.isTrackedAddress(owner) || this.sdk.isTrackedAddress(spender)) {
+      console.log('APPROVAL', log.event, owner, spender, log);
+      // updated the cached value
+      this.allowance(owner, spender, { multicall: true });
+    }
+  }
+
   // uses multicall to update all tracked address balances related to the event
   async _handleSupplyEvent(log) {
     const { args, event } = log;
 
+    if (!SUPPLY_EVENTS.includes(event)) {
+      return; // ignore
+    }
+
+    // console.log('SUPPLY', event, log);
+
     // update total supply
-    this.totalSupply({});
+    this.totalSupply({ multicall: true });
 
     // Rebases require an update of all balances we care about
     if (event === 'Rebase') {
+      console.log('SUPPLY', event, log);
+
       // take a local copy for efficiency
       const trackedAddress = [...this.sdk.trackedAddresses];
 
@@ -413,7 +465,7 @@ export default class ERC20 extends Base {
     for (let i = 0; i < potentialAddresses.length; i += 1) {
       // isTrackedAddress filters out non-address values
       if (this.sdk.isTrackedAddress(potentialAddresses[i])) {
-        console.log('Supply event', event, 'triggered balance update for', potentialAddresses[i]);
+        console.log('SUPPLY', event, 'triggered balance update for', potentialAddresses[i]);
         this.balanceOf(potentialAddresses[i], { multicall: true });
       }
     }
@@ -448,15 +500,24 @@ export default class ERC20 extends Base {
       // grab a new readonly contract instance to add listeners to
       cachedContracts[this.address] = this.readonlyContract;
 
-      const handler = (event) => this._handleSupplyEvent(event);
+      const supplyHandler = (event) => this._handleSupplyEvent(event);
 
       for (let i = 0; i < SUPPLY_EVENTS.length; i += 1) {
         const event = SUPPLY_EVENTS[i];
         // if the contract supports this event
         if (cachedContracts[this.address].filters[event]) {
           // listen for the event to take place
-          cachedContracts[this.address].on(cachedContracts[this.address].filters[event], handler);
+          const filter = cachedContracts[this.address].filters[event];
+          cachedContracts[this.address].on(filter, supplyHandler);
         }
+      }
+
+      const approvalHandler = (event) => this._handleApprovalEvent(event);
+
+      if (cachedContracts[this.address].filters[APPROVAL_EVENT]) {
+        // listen for the event to take place
+        const filter = cachedContracts[this.address].filters[APPROVAL_EVENT];
+        cachedContracts[this.address].on(filter, approvalHandler);
       }
     });
   }
