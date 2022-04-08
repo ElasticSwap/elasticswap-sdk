@@ -4,6 +4,7 @@
 import ExchangeContract from '@elasticswap/elasticswap/artifacts/src/contracts/Exchange.sol/Exchange.json';
 import ERC20 from '../tokens/ERC20.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
+import { toBigNumber } from '../utils/utils.mjs';
 
 import {
   calculateBaseTokenQty,
@@ -22,7 +23,6 @@ export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
     super(sdk, exchangeAddress);
 
-    // TODO: these addresses may be reversed and should be fetched from chain
     this._baseTokenAddress = baseTokenAddress.toLowerCase();
     this._quoteTokenAddress = quoteTokenAddress.toLowerCase();
 
@@ -101,7 +101,7 @@ export default class Exchange extends ERC20 {
   }
 
   get baseTokenBalance() {
-    return this.baseToken.balances[this.address];
+    return this.baseToken.balances[this.address] || toBigNumber(0);
   }
 
   /**
@@ -115,7 +115,7 @@ export default class Exchange extends ERC20 {
   }
 
   get quoteTokenBalance() {
-    return this.quoteToken.balances[this.address];
+    return this.quoteToken.balances[this.address] || toBigNumber(0);
   }
 
   /**
