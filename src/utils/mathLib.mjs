@@ -1,4 +1,3 @@
-// const BigNumber = require("bignumber.js");
 import BigNumber from 'bignumber.js';
 import { toBigNumber } from './utils.mjs';
 

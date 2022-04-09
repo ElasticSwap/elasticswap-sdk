@@ -4,7 +4,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy, log } = deployments;
   const namedAccounts = await getNamedAccounts();
   const { admin } = namedAccounts;
-  const initialSupply = 1000000000000;
+  const initialSupply = '10000000000000000000000000000000';
   const deployResult = await deploy('BaseToken', {
     from: admin,
     contract: ElasticMock,

@@ -139,7 +139,7 @@ export class SDK extends Subscribable {
    * @param {hardhat-deploy.MultiExport} config.env.deployments - deployed contract configuration
    * @param {ethers.providers.Provider} config.provider - default provider (optional)
    * @param {ethers.Signer} config.signer - initial ethers signer (optional)
-   * @param {StorageProvider} config.storageProvider - (optional)
+   * @param {StorageAdapter} config.storageAdapter - (optional)
    * @memberof SDK
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API}
    * @see {@link https://docs.blocknative.com/notify#initialization}
@@ -409,7 +409,7 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   get trackedAddresses() {
-    return this._addresses.values();
+    return Array.from(this._addresses);
   }
 
   /**
@@ -573,6 +573,22 @@ export class SDK extends Subscribable {
   }
 
   /**
+   * Looks up the abi of the named contract on the current chain. ABIs are derived from the
+   * options.env.contracts object passed when the SDK was created.
+   *
+   * @param {string} contractName
+   * @return {Array<Object>} - The abi of the contract
+   * @memberof SDK
+   */
+   contractAbi(contractName) {
+    const deployedContract = this.env.contracts[this.networkHex][contractName];
+
+    if (deployedContract) {
+      return deployedContract.abi;
+    }
+  }
+
+  /**
    * Looks up the address of the named contract on the current chain. Addresses are derived from the
    * options.env.contracts object passed when the SDK was created.
    *
@@ -677,8 +693,6 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   notify({ hash, obj, wait }) {
-    console.log('hash', hash, this._notify);
-
     if (!this._notify) {
       return;
     }

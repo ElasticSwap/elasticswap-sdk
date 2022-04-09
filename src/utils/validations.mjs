@@ -190,7 +190,7 @@ export const validateIsString = (thing, options = {}) => {
  * @return {boolean}
  */
 export const validateIsAddress = (thing, options = {}) => {
-  const defaultMessage = `not an Ethereum address ${thing}`;
+  const defaultMessage = `not an Ethereum address (${thing})`;
   return validate(isAddress(thing), {
     ...options,
     message: options.message || defaultMessage,
@@ -206,7 +206,7 @@ export const validateIsAddress = (thing, options = {}) => {
  * @return {boolean}
  */
 export const validateIsTransactionHash = (thing, options = {}) => {
-  const defaultMessage = 'not an Ethereum transaction hash';
+  const defaultMessage = `not an Ethereum transaction hash (${thing})`;
   return validate(isTransactionHash(thing), {
     ...options,
     message: options.message || defaultMessage,

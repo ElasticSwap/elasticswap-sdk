@@ -1,13 +1,23 @@
 const Exchange = require('@elasticswap/elasticswap/artifacts/src/contracts/Exchange.sol/Exchange.json');
+const ElasticMock = require('@elasticswap/elasticswap/artifacts/src/contracts/mocks/ElasticMock.sol/ElasticMock.json');
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy, log } = deployments;
   const namedAccounts = await getNamedAccounts();
   const { admin } = namedAccounts;
-  const baseToken = await deployments.get('BaseToken');
-  const baseTokenAddress = baseToken.address;
-  const quoteToken = await deployments.get('QuoteToken');
-  const quoteTokenAddress = quoteToken.address;
+  const initialSupply = 1000000000000;
+
+  const baseToken = await deploy('DummyBaseToken', {
+    from: admin,
+    contract: ElasticMock,
+    args: ['DummyBaseToken', 'DBT', initialSupply, admin],
+  });
+  const quoteToken = await deploy('DummyQuoteToken', {
+    from: admin,
+    contract: ElasticMock,
+    args: ['DummyQuoteToken', 'DQT', initialSupply, admin],
+  });
+
   const exchangeFactory = await deployments.get('ExchangeFactory');
   const exchangeFactoryAddress = exchangeFactory.address;
   const mathLib = await deployments.get('MathLib');
@@ -15,10 +25,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     from: admin,
     contract: Exchange,
     args: [
-      'ETMFUSD LP Token',
-      'ETMFUSD',
-      baseTokenAddress,
-      quoteTokenAddress,
+      'DQTvDBT LP Token',
+      'ELP',
+      baseToken.address,
+      quoteToken.address,
       exchangeFactoryAddress,
     ],
     libraries: {
@@ -33,4 +43,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   }
 };
 module.exports.tags = ['Exchange'];
-module.exports.dependencies = ['BaseToken', 'QuoteToken', 'MathLib', 'ExchangeFactory'];
+module.exports.dependencies = ['MathLib', 'ExchangeFactory'];

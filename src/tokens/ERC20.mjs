@@ -1,6 +1,6 @@
 /* eslint class-methods-use-this: 0 */
 
-import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' assert { type: 'json' };
+import ERC20Contract from '../abi/ERC20.json' assert { type: 'json' };
 import Base from '../Base.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
 import { toKey } from '../utils/utils.mjs';
@@ -369,7 +369,7 @@ export default class ERC20 extends Base {
    */
   async approve(spenderAddress, amount, overrides = {}) {
     validateIsAddress(spenderAddress);
-    validateIsBigNumber(amount);
+    validateIsBigNumber(this.toBigNumber(amount));
 
     this.sdk.trackAddress(spenderAddress);
 
@@ -398,7 +398,7 @@ export default class ERC20 extends Base {
    */
   async transfer(recipient, amount, overrides = {}) {
     validateIsAddress(recipient);
-    validateIsBigNumber(amount);
+    validateIsBigNumber(this.toBigNumber(amount));
 
     this.sdk.trackAddress(recipient);
 

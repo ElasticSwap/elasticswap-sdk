@@ -53,7 +53,6 @@ export default class Multicall extends Base {
 
     // build up requests
     const requests = calls.map(({ abi, address, args, funcName }) => {
-      console.log('MULTICALL', abi.length, address, funcName, args);
       const contract = new Contract(address, abi);
       return contract[funcName](...args);
     });
@@ -63,9 +62,6 @@ export default class Multicall extends Base {
     // fetch results from the blockchain
     results = await this.provider.all(requests).catch((error) => {
       // if we error, process the requests individually so only the one with an error fails
-      console.error('MULTICALL ERROR', error.message);
-      console.warn('MULTICALL FULL ERROR', error);
-
       for (let i = 0; i < calls.length; i += 1) {
         const { abi, address, args, funcName, resolve, reject } = calls[i];
         const readonly = true;

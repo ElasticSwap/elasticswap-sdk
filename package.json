@@ -23,7 +23,7 @@
     "prettier:fix": "npx prettier --write src/*.mjs src/**/*.mjs test/**/*.mjs test/**/*.js",
     "release": "npm publish --access=public",
     "stats": "npx webpack -c ./webpack.config.js --json > stats.json",
-    "test": "mocha -timeout 5000 -exit './test/**/**.test.mjs' --experimental-json-modules"
+    "test": "mocha -timeout 10000 -exit './test/**/**.test.mjs' --experimental-json-modules"
   },
   "devDependencies": {
     "@babel/cli": "^7.15.7",

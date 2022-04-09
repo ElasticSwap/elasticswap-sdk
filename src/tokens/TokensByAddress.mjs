@@ -1,5 +1,3 @@
-// return ;
-
 import Base from '../Base.mjs';
 
 /**

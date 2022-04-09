@@ -1,115 +1,97 @@
 /* eslint import/extensions: 0 */
 import chai from 'chai';
-import fetch from 'node-fetch';
 import hardhat from 'hardhat';
-import * as elasticSwapSDK from '../../src/index.mjs';
-import LocalStorageAdapterMock from '../adapters/LocalStorageAdapterMock.mjs';
-import { expectThrowsAsync } from '../testHelpers.mjs';
+import { buildCoreObjects, expectThrowsAsync } from '../testHelpers.mjs';
 
 const { ethers, deployments } = hardhat;
 const { assert } = chai;
 
-const storageAdapter = new LocalStorageAdapterMock();
-
 describe('ExchangeFactory', () => {
-  let sdk;
-  let baseToken;
-  let quoteToken;
-  let ExchangeFactory;
+  let coreObjects;
   let accounts;
+  let snapshotId;
 
   before(async () => {
-    await deployments.fixture();
-    ExchangeFactory = await deployments.get('ExchangeFactory');
-    const { chainId } = await hardhat.ethers.provider.getNetwork();
-    const env = {
-      networkId: chainId,
-      exchangeFactoryAddress: ExchangeFactory.address,
-    };
-
+    coreObjects = await buildCoreObjects(deployments, ethers.provider);
     accounts = await ethers.getSigners();
-
-    sdk = new elasticSwapSDK.SDK({
-      env,
-      customFetch: fetch,
-      provider: hardhat.ethers.provider,
-      signer: accounts[0],
-      storageAdapter,
-    });
-
-    await sdk.awaitInitialized();
-
-    const BaseToken = await deployments.get('BaseToken');
-    baseToken = new ethers.Contract(BaseToken.address, BaseToken.abi, accounts[0]);
-
-    const QuoteToken = await deployments.get('QuoteToken');
-    quoteToken = new ethers.Contract(QuoteToken.address, QuoteToken.abi, accounts[0]);
   });
 
   beforeEach(async () => {
-    await deployments.fixture();
-    ExchangeFactory = await deployments.get('ExchangeFactory');
+    const { sdk } = coreObjects;
+    // save the state of the blockchain before the test
+    snapshotId = await sdk.provider.send('evm_snapshot');
+  });
+
+  afterEach(async () => {
+    const { sdk } = coreObjects;
+    // rollback to the state before the test to prevent polution
+    await sdk.provider.send('evm_revert', [snapshotId]);
   });
 
   describe('Constructor', () => {
     it('can be created via constructor', async () => {
-      await deployments.fixture();
+      const { elasticSwapSDK, ExchangeFactory, sdk } = coreObjects;
+
       const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+
       assert.isNotNull(exchangeFactory);
-      assert.equal(ExchangeFactory.address, exchangeFactory.address);
+      assert.equal(ExchangeFactory.address.toLowerCase(), exchangeFactory.address);
     });
   });
 
-  describe('getFeeAddress', () => {
+  describe('feeAddress', () => {
     it('returns expected fee address', async () => {
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+      const { exchangeFactoryContract, sdk } = coreObjects;
 
-      const exchangeFactoryContract = new ethers.Contract(
-        ExchangeFactory.address,
-        ExchangeFactory.abi,
-        accounts[0],
-      );
+      const { exchangeFactory } = sdk;
+
       assert.equal(
-        await exchangeFactoryContract.feeAddress(),
-        await exchangeFactory.getFeeAddress(),
+        (await exchangeFactoryContract.feeAddress()).toLowerCase(),
+        await exchangeFactory.feeAddress(),
       );
     });
   });
 
   describe('createNewExchange', () => {
     it('Can create a new exchange', async () => {
-      const randomAccount = accounts[5];
-      await sdk.changeSigner(randomAccount);
+      const { baseToken, exchangeFactoryContract, quoteToken, sdk } = coreObjects;
 
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+      // set a signer
+      await sdk.changeSigner(accounts[5]);
 
-      const exchangeFactoryContract = new ethers.Contract(
-        ExchangeFactory.address,
-        ExchangeFactory.abi,
-        accounts[0],
-      );
+      const { exchangeFactory } = sdk;
+
+      // Start by making sure the exchange doesn't exist
       const zeroAddress = await exchangeFactoryContract.exchangeAddressByTokenAddress(
         baseToken.address,
         quoteToken.address,
       );
       assert.equal(zeroAddress, ethers.constants.AddressZero);
 
+      // Create a new exchange
       await exchangeFactory.createNewExchange(baseToken.address, quoteToken.address);
 
+      // Make sure the exchange now does exist
       const exchangeAddress = await exchangeFactoryContract.exchangeAddressByTokenAddress(
         baseToken.address,
         quoteToken.address,
       );
       assert.notEqual(exchangeAddress, ethers.constants.AddressZero);
-      const exchange = await exchangeFactory.getExchange(baseToken.address, quoteToken.address);
-      assert.equal(exchangeAddress, exchange.address);
+
+      // Make sure we can fetch the exchange from the class itself
+      const exchange = await exchangeFactory.exchange(baseToken.address, quoteToken.address);
+      assert.equal(exchangeAddress.toLowerCase(), exchange.address);
     });
 
     it('Will fail to create a duplicate exchange', async () => {
-      const randomAccount = accounts[5];
-      await sdk.changeSigner(randomAccount);
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+      const { baseToken, quoteToken, sdk } = coreObjects;
 
+      // set a signer
+      await sdk.changeSigner(accounts[5]);
+
+      const { exchangeFactory } = sdk;
+
+      // create the exchange the first time
       await exchangeFactory.createNewExchange(baseToken.address, quoteToken.address);
 
       await expectThrowsAsync(
@@ -118,14 +100,17 @@ describe('ExchangeFactory', () => {
           baseToken.address,
           quoteToken.address,
         ),
-        'Origin: exchangeFactory, Code: 20, Message: PAIR_ALREADY_EXISTS, Path: unknown.',
+        'ExchangeFactory: An exchange already exists for that pair!',
       );
     });
 
     it('Will fail to create exchange with bad addresses', async () => {
-      const randomAccount = accounts[5];
-      await sdk.changeSigner(randomAccount);
-      const exchangeFactory = new elasticSwapSDK.ExchangeFactory(sdk, ExchangeFactory.address);
+      const { baseToken, sdk } = coreObjects;
+
+      // set a signer
+      await sdk.changeSigner(accounts[5]);
+
+      const { exchangeFactory } = sdk;
 
       await expectThrowsAsync(
         exchangeFactory.createNewExchange.bind(
@@ -133,7 +118,7 @@ describe('ExchangeFactory', () => {
           baseToken.address,
           baseToken.address,
         ),
-        'Origin: exchangeFactory, Code: 19, Message: BASE_TOKEN_SAME_AS_QUOTE, Path: unknown.',
+        'ExchangeFactory: Cannot create an exchange when Quote and Base tokens are the same',
       );
 
       await expectThrowsAsync(
@@ -142,7 +127,7 @@ describe('ExchangeFactory', () => {
           baseToken.address,
           'not an address',
         ),
-        '@elasticswap/sdk - validations: not an Ethereum address',
+        'ExchangeFactory: not an Ethereum address (not an address)',
       );
 
       await expectThrowsAsync(
@@ -151,7 +136,7 @@ describe('ExchangeFactory', () => {
           'not an address',
           baseToken.address,
         ),
-        '@elasticswap/sdk - validations: not an Ethereum address',
+        'ExchangeFactory: not an Ethereum address (not an address)',
       );
 
       await expectThrowsAsync(
@@ -160,7 +145,7 @@ describe('ExchangeFactory', () => {
           baseToken.address,
           ethers.constants.AddressZero,
         ),
-        'Origin: exchangeFactory, Code: 18, Message: QUOTE_TOKEN_IS_ZERO_ADDRESS, Path: unknown.',
+        'ExchangeFactory: Quote and Base tokens must both be ERC20 tokens',
       );
 
       await expectThrowsAsync(
@@ -169,7 +154,7 @@ describe('ExchangeFactory', () => {
           ethers.constants.AddressZero,
           baseToken.address,
         ),
-        'Origin: exchangeFactory, Code: 17, Message: BASE_TOKEN_IS_ZERO_ADDRESS, Path: unknown.',
+        'ExchangeFactory: Quote and Base tokens must both be ERC20 tokens',
       );
     });
   });

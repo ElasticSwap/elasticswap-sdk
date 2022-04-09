@@ -1,16 +1,18 @@
 /* eslint class-methods-use-this: 0 */
 
 import { ethers } from 'ethers';
-import ExchangeFactoryContract from '@elasticswap/elasticswap/artifacts/src/contracts/ExchangeFactory.sol/ExchangeFactory.json';
 import Exchange from './Exchange.mjs';
 import Cachable from '../Cachable.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
 import { toKey } from '../utils/utils.mjs';
-import { validateIsAddress } from '../utils/validations.mjs';
+import { validate, validateIsAddress } from '../utils/validations.mjs';
 
 // We don't need this data to persist across loads but we would like it to persist across network
 // changes.
 const exchanges = {};
+
+// prefix for errors
+const prefix = 'ExchangeFactory';
 
 /**
  * Provides a wrapping interface for the ExchangeFactory contract.
@@ -39,11 +41,8 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   static contract(sdk, address, readonly = false) {
-    return sdk.contract({
-      abi: ExchangeFactoryContract.abi,
-      address,
-      readonly,
-    });
+    const abi = sdk.contractAbi('ExchangeFactory');
+    return sdk.contract({ abi, address, readonly });
   }
 
   /**
@@ -75,7 +74,7 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   get abi() {
-    return ExchangeFactoryContract.abi;
+    return this.sdk.contractAbi('ExchangeFactory');
   }
 
   /**
@@ -119,8 +118,25 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   async createNewExchange(baseTokenAddress, quoteTokenAddress, overrides = {}) {
-    validateIsAddress(baseTokenAddress);
-    validateIsAddress(quoteTokenAddress);
+    validateIsAddress(baseTokenAddress, { prefix });
+    validateIsAddress(quoteTokenAddress, { prefix });
+
+    validate(baseTokenAddress.toLowerCase() !== quoteTokenAddress.toLowerCase(), {
+      message: 'Cannot create an exchange when Quote and Base tokens are the same',
+      prefix
+    });
+
+    validate(quoteTokenAddress !== ethers.constants.AddressZero && baseTokenAddress.toLowerCase() !== ethers.constants.AddressZero, {
+      message: 'Quote and Base tokens must both be ERC20 tokens',
+      prefix
+    });
+
+    const existingAddress = await this.exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress);
+
+    validate(!existingAddress, {
+      message: 'An exchange already exists for that pair!',
+      prefix
+    });
 
     // create the exchange
     const receipt = this._handleTransaction(
@@ -148,10 +164,8 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   async exchange(baseTokenAddress, quoteTokenAddress, overrides) {
-    validateIsAddress(baseTokenAddress);
-    validateIsAddress(quoteTokenAddress);
-
-    console.log('exchange requested', baseTokenAddress, quoteTokenAddress);
+    validateIsAddress(baseTokenAddress, { prefix });
+    validateIsAddress(quoteTokenAddress, { prefix });
 
     // find the address of the exchange
     const exchangeAddress = await this.exchangeAddressByTokenAddress(
@@ -162,7 +176,6 @@ export default class ExchangeFactory extends Cachable {
 
     // there is no exchange yet
     if (!exchangeAddress) {
-      console.log('No exchange for', baseTokenAddress, quoteTokenAddress);
       return;
     }
 
@@ -214,7 +227,6 @@ export default class ExchangeFactory extends Cachable {
   async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides) {
     // if there are overrides and this is not a multicall request, fetch directly from the network
     if (isPOJO(overrides) && !overrides.multicall) {
-      console.log('overrides', overrides);
       return this.readonlyContract.exchangeAddressByTokenAddress(
         baseTokenAddress,
         quoteTokenAddress,
@@ -231,7 +243,6 @@ export default class ExchangeFactory extends Cachable {
     // if the value is cached and this is not a multicall request, return it
     if (this.cache.has(key) && !overrides?.multicall) {
       const cached = this.cache.get(key);
-      console.log('cached', cached);
     }
 
     // fetch the value from the network using multicall and cache it
@@ -247,8 +258,6 @@ export default class ExchangeFactory extends Cachable {
     ]);
 
     const exchangeAddress = addresses.find((addy) => addy !== ethers.constants.AddressZero);
-
-    console.log('exchangeAddress', exchangeAddress, addresses);
 
     // we don't have an exchange for that address
     if (!exchangeAddress) {
@@ -303,7 +312,7 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   async isValidExchange(address, overrides) {
-    validateIsAddress(address);
+    validateIsAddress(address, { prefix });
 
     const exchangeAddress = address.toLowerCase();
 

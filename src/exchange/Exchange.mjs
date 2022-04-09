@@ -1,7 +1,6 @@
 /* eslint class-methods-use-this: 0 */
 /* eslint prefer-destructuring: 0 */
 
-import ExchangeContract from '@elasticswap/elasticswap/artifacts/src/contracts/Exchange.sol/Exchange.json';
 import ERC20 from '../tokens/ERC20.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
 import { toBigNumber } from '../utils/utils.mjs';
@@ -19,9 +18,14 @@ import {
 
 import { validate, validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
 
+const prefix = 'Exchange';
+
 export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
     super(sdk, exchangeAddress);
+
+    validateIsAddress(baseTokenAddress, { prefix });
+    validateIsAddress(quoteTokenAddress, { prefix });
 
     this._baseTokenAddress = baseTokenAddress.toLowerCase();
     this._quoteTokenAddress = quoteTokenAddress.toLowerCase();
@@ -63,21 +67,18 @@ export default class Exchange extends ERC20 {
    * @memberof Exchange
    */
   static contract(sdk, address, readonly = false) {
-    return sdk.contract({
-      abi: ExchangeContract.abi,
-      address,
-      readonly,
-    });
+    const abi = sdk.contractAbi('Exchange');
+    return sdk.contract({ abi, address, readonly });
   }
 
   /**
    * Returns the abi for the underlying contract
    *
    * @readonly
-   * @memberof ExchangeFactory
+   * @memberof Exchange
    */
   get abi() {
-    return ExchangeContract.abi;
+    return this.sdk.contractAbi('Exchange');
   }
 
   /**
@@ -268,25 +269,16 @@ export default class Exchange extends ERC20 {
     overrides = {},
   ) {
     // Validate all the inputs
-    validateIsBigNumber(baseTokenQtyDesired);
-    validateIsBigNumber(quoteTokenQtyDesired);
-    validateIsBigNumber(baseTokenQtyMin);
-    validateIsBigNumber(quoteTokenQtyMin);
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyDesired));
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyDesired));
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyMin));
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyMin));
     validateIsAddress(liquidityTokenRecipient);
     validateIsAddress(this.sdk.account);
 
-    // save the user gas by confirming that the minimum values are not greater than the maximum ones
-    validate(baseTokenQtyMin.lte(baseTokenQtyDesired), {
-      message: `Minimum amount of ${this.baseToken.symbol} requested is greater than the maximum.`,
-      prefix: 'Exchange',
-    });
-
-    validate(quoteTokenQtyMin.lte(quoteTokenQtyDesired), {
-      message: `Minimum amount of ${this.quoteToken.symbol} requested is greater than the maximum.`,
-      prefix: 'Exchange',
-    });
-
     const [
+      baseTokenSymbol,
+      quoteTokenSymbol,
       baseTokenBalance,
       quoteTokenBalance,
       baseTokenAllowance,
@@ -294,33 +286,46 @@ export default class Exchange extends ERC20 {
       baseTokenDecimals,
       quoteTokenDecimals,
     ] = await Promise.all([
-      this.baseToken.balanceOf(this.sdk.account),
-      this.quoteToken.balanceOf(this.sdk.account),
-      this.baseToken.allowance(this.sdk.account, this.address),
-      this.quoteToken.allowance(this.sdk.account, this.address),
+      this.baseToken.symbol(),
+      this.quoteToken.symbol(),
+      this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
+      this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
       this.baseToken.decimals(),
       this.quoteToken.decimals(),
     ]);
 
-    // save the user gas by confirming that the allowances and balance match the request
-    validate(baseTokenQtyDesired.lt(baseTokenBalance), {
-      message: `You don't have enough ${this.baseToken.symbol}`,
-      prefix: 'Exchange',
+    // save the user gas by confirming that the minimum values are not greater than the maximum ones
+    validate(this.toBigNumber(baseTokenQtyMin).lte(baseTokenQtyDesired), {
+      message: `Minimum amount of ${baseTokenSymbol} requested is greater than the maximum.`,
+      prefix,
     });
 
-    validate(quoteTokenQtyDesired.lt(quoteTokenBalance), {
-      message: `You don't have enough ${this.quoteToken.symbol}`,
-      prefix: 'Exchange',
+    validate(this.toBigNumber(quoteTokenQtyMin).lte(quoteTokenQtyDesired), {
+      message: `Minimum amount of ${quoteTokenSymbol} requested is greater than the maximum.`,
+      prefix,
+    });
+
+    // save the user gas by confirming that the allowances and balance match the request
+    validate(this.toBigNumber(baseTokenQtyDesired).lt(baseTokenBalance), {
+      message: `You don't have enough ${baseTokenSymbol}`,
+      prefix,
+    });
+
+    validate(this.toBigNumber(quoteTokenQtyDesired).lt(quoteTokenBalance), {
+      message: `You don't have enough ${quoteTokenSymbol}`,
+      prefix,
     });
 
     validate(baseTokenAllowance.gte(baseTokenQtyDesired), {
-      message: `Not allowed to spend that much ${this.baseToken.symbol}`,
-      prefix: 'Exchange',
+      message: `Not allowed to spend that much ${baseTokenSymbol}`,
+      prefix,
     });
 
     validate(quoteTokenAllowance.gte(quoteTokenQtyDesired), {
-      message: `Not allowed to spend that much ${this.quoteToken.symbol}`,
-      prefix: 'Exchange',
+      message: `Not allowed to spend that much ${quoteTokenSymbol}`,
+      prefix,
     });
 
     // build the payload
@@ -335,16 +340,13 @@ export default class Exchange extends ERC20 {
     ];
 
     const nowish = (Date.now() + 100) / 1000;
-    console.log(expirationTimestamp, nowish);
 
     // save the user gas by confirming that the timestamp is not already expired
     // do this at the last possible moment and add 100 ms for network latency
     validate(expirationTimestamp > nowish, {
       message: 'Requested expiration is in the past',
-      prefix: 'Exchange',
+      prefix,
     });
-
-    console.log('ADD LIQUIDITY PAYLOAD', payload);
 
     // submit the transaction
     const receipt = await this._handleTransaction(await this.contract.addLiquidity(...payload));

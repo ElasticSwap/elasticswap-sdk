@@ -1,4 +1,3 @@
-import StakingPoolsContract from '../abi/StakingPools.json' assert { type: 'json' };
 import Base from '../Base.mjs';
 
 // 365.25 * 24 * 60 * 60
@@ -36,11 +35,18 @@ export default class StakingPools extends Base {
    * @memberof StakingPools
    */
   static contract(sdk, address, readonly = false) {
-    return sdk.contract({
-      abi: StakingPoolsContract.abi,
-      address,
-      readonly,
-    });
+    const abi = sdk.contractAbi('StakingPools');
+    return sdk.contract({ abi, address, readonly });
+  }
+
+  /**
+   * Returns the abi for the underlying contract
+   *
+   * @readonly
+   * @memberof StakingPools
+   */
+   get abi() {
+    return this.sdk.contractAbi('StakingPools');
   }
 
   /**

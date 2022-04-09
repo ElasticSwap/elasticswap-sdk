@@ -1,137 +1,127 @@
 /* eslint import/extensions: 0 */
 import chai from 'chai';
-import fetch from 'node-fetch';
 import hardhat from 'hardhat';
-import * as elasticSwap from '../../src/index.mjs';
-import LocalStorageAdapterMock from '../adapters/LocalStorageAdapterMock.mjs';
+import { buildCoreObjects } from '../testHelpers.mjs';
 
-const { toBigNumber } = elasticSwap.utils;
 const { ethers, deployments } = hardhat;
 const { assert } = chai;
 
-const storageAdapter = new LocalStorageAdapterMock();
-
 describe('ERC20', () => {
-  let sdk;
+  let coreObjects;
+  let accounts;
+  let snapshotId;
 
   before(async () => {
-    await deployments.fixture();
-    const ExchangeFactory = await deployments.get('ExchangeFactory');
-    const { chainId } = await hardhat.ethers.provider.getNetwork();
-    const env = {
-      networkId: chainId,
-      exchangeFactoryAddress: ExchangeFactory.address,
-    };
+    coreObjects = await buildCoreObjects(deployments, ethers.provider);
+    accounts = await ethers.getSigners();
+  });
 
-    const accounts = await ethers.getSigners();
-    sdk = new elasticSwap.SDK({
-      env,
-      customFetch: fetch,
-      provider: hardhat.ethers.provider,
-      signer: accounts[0],
-      storageAdapter,
-    });
+  beforeEach(async () => {
+    const { sdk } = coreObjects;
+    // save the state of the blockchain before the test
+    snapshotId = await sdk.provider.send('evm_snapshot');
+  });
+
+  afterEach(async () => {
+    const { sdk } = coreObjects;
+    // rollback to the state before the test to prevent polution
+    await sdk.provider.send('evm_revert', [snapshotId]);
   });
 
   describe('Constructor', () => {
     it('can be created via constructor', async () => {
-      await deployments.fixture();
-      const quoteToken = await deployments.get('QuoteToken');
-      const erc20 = new elasticSwap.ERC20(sdk, quoteToken.address);
-      assert.equal(quoteToken.address, erc20.address);
-      assert.isNotNull(erc20.contract);
+      const { QuoteToken, elasticSwapSDK, sdk } = coreObjects;
+
+      const { ERC20 } = elasticSwapSDK;
+
+      const erc20 = new ERC20(sdk, QuoteToken.address);
+
+      assert.equal(QuoteToken.address.toLowerCase(), erc20.address);
     });
   });
 
   describe('balanceOf', () => {
     it('Gets correct balance of address when balance is not zero', async () => {
-      const accounts = await ethers.getSigners();
+      const { quoteToken, quoteTokenContract, quoteTokenDecimals, toBigNumber } = coreObjects;
 
-      await deployments.fixture();
-      const quoteToken = await deployments.get('QuoteToken');
+      // get the balance from the contract directly
+      const rawBalance = await quoteTokenContract.balanceOf(accounts[0].address)
 
-      const quoteTokenContract = sdk.contract({
-        address: quoteToken.address,
-        abi: quoteToken.abi,
-      });
-      const erc20Contract = new elasticSwap.ERC20(sdk, quoteToken.address);
+      // convert it to decimal format
+      const expectedBalance = toBigNumber(rawBalance, quoteTokenDecimals);
 
-      let expectedBalance = await quoteTokenContract.balanceOf(accounts[0].address);
-      expectedBalance = toBigNumber(expectedBalance.toString());
-      let balance = await erc20Contract.balanceOf(accounts[0].address);
-      balance = toBigNumber(balance.toString());
+      assert.isTrue(!expectedBalance.isZero());
+
+      // get the balance from the erc20 class instance
+      const balance = await quoteToken.balanceOf(accounts[0].address);
+
       assert.isTrue(expectedBalance.eq(balance));
     });
 
     it('Gets zero balance of address when balance is zero', async () => {
-      const accounts = await ethers.getSigners();
+      const { quoteToken, quoteTokenContract, quoteTokenDecimals, toBigNumber } = coreObjects;
 
-      await deployments.fixture();
-      const quoteToken = await deployments.get('QuoteToken');
+      // get the balance from the contract directly
+      const rawBalance = await quoteTokenContract.balanceOf(accounts[1].address)
 
-      const quoteTokenContract = sdk.contract({
-        address: quoteToken.address,
-        abi: quoteToken.abi,
-      });
-      const erc20Contract = new elasticSwap.ERC20(sdk, quoteToken.address);
-      let expectedBalance = await quoteTokenContract.balanceOf(accounts[1].address);
-      expectedBalance = toBigNumber(expectedBalance.toString());
-      let balance = await erc20Contract.balanceOf(accounts[1].address);
-      balance = toBigNumber(balance.toString());
+      // convert it to decimal format
+      const expectedBalance = toBigNumber(rawBalance, quoteTokenDecimals);
+
+      assert.isTrue(expectedBalance.isZero());
+
+      // get the balance from the erc20 class instance
+      const balance = await quoteToken.balanceOf(accounts[1].address);
+
       assert.isTrue(expectedBalance.eq(balance));
     });
   });
 
   describe('approve', () => {
     it('Should increment balance for QuoteToken Allowance', async () => {
-      const accounts = await ethers.getSigners();
-
-      await deployments.fixture();
-      const quoteTokenMock = await deployments.get('QuoteToken');
-      const quoteTokenContract = new ethers.Contract(
-        quoteTokenMock.address,
-        quoteTokenMock.abi,
-        accounts[0],
-      );
-
-      const spenderAddress = accounts[1].address;
-      const erc20 = new elasticSwap.ERC20(sdk, quoteTokenMock.address);
-
-      // checking initial approvals
-      const startingApproval = await quoteTokenContract.allowance(
-        accounts[0].address,
-        spenderAddress,
-      );
+      const { quoteToken, quoteTokenContract, quoteTokenDecimals, sdk, toBigNumber } = coreObjects;
 
       const approvalAmount = 50000;
-      await erc20.approve(spenderAddress, approvalAmount);
+      const ownerAddress = accounts[0].address;
+      const spenderAddress = accounts[1].address;
 
-      const endingApproval = await quoteTokenContract.allowance(
-        accounts[0].address,
-        spenderAddress,
-      );
+      await sdk.changeSigner(accounts[0]);
 
-      assert.isTrue(startingApproval.eq(0));
-      assert.isTrue(endingApproval.eq(approvalAmount));
-      assert.isTrue(endingApproval.gt(startingApproval));
+      // get the initial allowance from the contract directly
+      const rawStartingAllowance = await quoteTokenContract.allowance(ownerAddress, spenderAddress);
+
+      // convert it to decimal format
+      const startingAllowance = toBigNumber(rawStartingAllowance, quoteTokenDecimals);
+
+      // it should be zero
+      assert.isTrue(startingAllowance.eq(0));
+
+      // approve the amount via the ERC20 class instance
+      await quoteToken.approve(spenderAddress, approvalAmount);
+
+      // get the new allowance from the contract directly
+      const rawEndingAllowance = await quoteTokenContract.allowance(ownerAddress, spenderAddress);
+
+      // convert it to decimal format
+      const endingAllowance = toBigNumber(rawEndingAllowance, quoteTokenDecimals);
+      
+      // it should be updated
+      assert.isTrue(endingAllowance.eq(approvalAmount));
     });
   });
 
   describe('totalSupply', () => {
     it('Gets correct total supply', async () => {
-      const accounts = await ethers.getSigners();
+      const { quoteToken, quoteTokenContract, quoteTokenDecimals, toBigNumber } = coreObjects;
 
-      await deployments.fixture();
-      const quoteTokenMock = await deployments.get('QuoteToken');
-      const quoteTokenContract = new ethers.Contract(
-        quoteTokenMock.address,
-        quoteTokenMock.abi,
-        accounts[0],
-      );
+      // get the total supply directly from the contract
+      const rawTotalSupply = await quoteTokenContract.totalSupply();
 
-      const erc20 = new elasticSwap.ERC20(sdk, quoteTokenMock.address);
-      const totalSupply = await erc20.totalSupply();
-      const expectedTotalSupply = await quoteTokenContract.totalSupply();
+      // convert it to decimal format
+      const expectedTotalSupply = await toBigNumber(rawTotalSupply, quoteTokenDecimals);
+
+      // get the total supply from the ERC20 class instance
+      const totalSupply = await quoteToken.totalSupply();
+
       assert.isTrue(totalSupply.eq(expectedTotalSupply));
     });
   });
