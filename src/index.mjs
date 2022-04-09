@@ -580,7 +580,7 @@ export class SDK extends Subscribable {
    * @return {Array<Object>} - The abi of the contract
    * @memberof SDK
    */
-   contractAbi(contractName) {
+  contractAbi(contractName) {
     const deployedContract = this.env.contracts[this.networkHex][contractName];
 
     if (deployedContract) {
@@ -861,7 +861,7 @@ export class SDK extends Subscribable {
           this._accountName = ensName;
         }
       } catch (e) {
-        console.error('unable to look up ens name', e.message);
+        // console.error('unable to look up ens name', e.message);
       }
     }
   }

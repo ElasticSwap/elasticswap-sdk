@@ -123,19 +123,27 @@ export default class ExchangeFactory extends Cachable {
 
     validate(baseTokenAddress.toLowerCase() !== quoteTokenAddress.toLowerCase(), {
       message: 'Cannot create an exchange when Quote and Base tokens are the same',
-      prefix
+      prefix,
     });
 
-    validate(quoteTokenAddress !== ethers.constants.AddressZero && baseTokenAddress.toLowerCase() !== ethers.constants.AddressZero, {
-      message: 'Quote and Base tokens must both be ERC20 tokens',
-      prefix
-    });
+    validate(
+      quoteTokenAddress !== ethers.constants.AddressZero &&
+        baseTokenAddress.toLowerCase() !== ethers.constants.AddressZero,
+      {
+        message: 'Quote and Base tokens must both be ERC20 tokens',
+        prefix,
+      },
+    );
 
-    const existingAddress = await this.exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress);
+    const existingAddress = await this.exchangeAddressByTokenAddress(
+      baseTokenAddress,
+      quoteTokenAddress,
+      { multicall: true },
+    );
 
     validate(!existingAddress, {
       message: 'An exchange already exists for that pair!',
-      prefix
+      prefix,
     });
 
     // create the exchange
@@ -242,7 +250,7 @@ export default class ExchangeFactory extends Cachable {
 
     // if the value is cached and this is not a multicall request, return it
     if (this.cache.has(key) && !overrides?.multicall) {
-      const cached = this.cache.get(key);
+      return this.cache.get(key);
     }
 
     // fetch the value from the network using multicall and cache it

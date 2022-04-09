@@ -18,6 +18,7 @@ export const buildCoreObjects = async (deployments, provider) => {
   // sdk
   const sdk = new SDK(sdkConfig);
   await sdk.awaitInitialized();
+
   await sdk.provider.send("evm_setIntervalMining", [100]); // mine a block every 100 ms
 
   // class instances

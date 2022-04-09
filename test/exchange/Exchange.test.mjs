@@ -1,27 +1,30 @@
 /* eslint import/extensions: 0 */
-import BigNumber from 'bignumber.js';
+/* eslint max-len: 0 */
+// import BigNumber from 'bignumber.js';
 import chai from 'chai';
 import hardhat from 'hardhat';
 import { buildCoreObjects, expectThrowsAsync } from '../testHelpers.mjs';
 
 const { ethers, deployments } = hardhat;
 const { expect, assert } = chai;
-const { ROUND_UP, ROUND_DOWN } = BigNumber;
+// const { ROUND_UP, ROUND_DOWN } = BigNumber;
 
-describe.only('Exchange', () => {
+describe('Exchange', () => {
   let coreObjects;
   let accounts;
   let exchange;
-  let globalSnapshotId;
   let snapshotId;
 
   before(async () => {
     coreObjects = await buildCoreObjects(deployments, ethers.provider);
     accounts = await ethers.getSigners();
+  });
 
+  beforeEach(async () => {
     const { baseToken, quoteToken, sdk } = coreObjects;
-    // save the state of the blockchain before all the tests
-    globalSnapshotId = await sdk.provider.send('evm_snapshot');
+
+    // save the state of the blockchain before the test
+    snapshotId = await sdk.provider.send('evm_snapshot');
 
     // set the signer to the moneybags account
     await sdk.changeSigner(accounts[0]);
@@ -31,35 +34,29 @@ describe.only('Exchange', () => {
     exchange = await sdk.exchangeFactory.exchange(baseToken.address, quoteToken.address);
   });
 
-  beforeEach(async () => {
-    const { sdk } = coreObjects;
-    // save the state of the blockchain before the test
-    snapshotId = await sdk.provider.send('evm_snapshot');
-  });
-
   afterEach(async () => {
     const { sdk } = coreObjects;
     // rollback to the state before the test to prevent polution
     await sdk.provider.send('evm_revert', [snapshotId]);
   });
 
-  after(async () => {
-    const { sdk } = coreObjects;
-    // rollback to the state before all the test to prevent polution
-    await sdk.provider.send('evm_revert', [globalSnapshotId]);
-  })
-
   describe('constructor', () => {
     it('Can be created via constructor', async () => {
       const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
 
-      const newExchange = new elasticSwapSDK.Exchange(sdk, exchange.address, baseToken.address, quoteToken.address);
+      const newExchange = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
 
       assert.equal(exchange.address.toLowerCase(), newExchange.address);
     });
   });
 
   // TODO: Reenable this when the functionality is reintroduced
+  /*
   describe.skip('swapBaseTokenForQuoteToken', () => {
     it('Should baseToken wallet balance be less than baseToken to be swapped', async () => {
       // create expiration 50 minutes from now.
@@ -693,6 +690,7 @@ describe.only('Exchange', () => {
       );
     });
   });
+  */
 
   describe('addLiquidity', () => {
     it('Should quoteToken and baseToken qty to be swapped be less than quoteToken and baseToken minimum qty', async () => {
@@ -784,10 +782,7 @@ describe.only('Exchange', () => {
         expiration,
       );
 
-      await expectThrowsAsync(
-        testMethod,
-        'Exchange: You don\'t have enough ETM',
-      );
+      await expectThrowsAsync(testMethod, "Exchange: You don't have enough ETM");
 
       // confirm the exchange has 0 balance for base and quote token
       expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
@@ -834,10 +829,7 @@ describe.only('Exchange', () => {
         expiration,
       );
 
-      await expectThrowsAsync(
-        testMethod,
-        'Exchange: You don\'t have enough FUSD',
-      );
+      await expectThrowsAsync(testMethod, "Exchange: You don't have enough FUSD");
 
       // confirm the exchange has 0 balance for base and quote token
       expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
@@ -883,10 +875,7 @@ describe.only('Exchange', () => {
         expiration,
       );
 
-      await expectThrowsAsync(
-        testMethod,
-        'Exchange: Requested expiration is in the past',
-      );
+      await expectThrowsAsync(testMethod, 'Exchange: Requested expiration is in the past');
 
       // confirm the exchange has 0 balance for base and quote token
       expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
@@ -933,10 +922,13 @@ describe.only('Exchange', () => {
 
       // confirm the exchange now has the expected balance
       expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(baseTokenQtyToAdd);
-      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(quoteTokenQtyToAdd);
+      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(
+        quoteTokenQtyToAdd,
+      );
     });
   });
 
+  /*
   // TODO: Reenable this when the functionality is reintroduced
   describe.skip('removeLiquidity', () => {
     it('Should LP Token allowance balance be less than LP Token to be swapped', async () => {
@@ -1700,4 +1692,5 @@ describe.only('Exchange', () => {
       expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
     });
   });
+  */
 });

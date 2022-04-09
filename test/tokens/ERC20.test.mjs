@@ -45,7 +45,7 @@ describe('ERC20', () => {
       const { quoteToken, quoteTokenContract, quoteTokenDecimals, toBigNumber } = coreObjects;
 
       // get the balance from the contract directly
-      const rawBalance = await quoteTokenContract.balanceOf(accounts[0].address)
+      const rawBalance = await quoteTokenContract.balanceOf(accounts[0].address);
 
       // convert it to decimal format
       const expectedBalance = toBigNumber(rawBalance, quoteTokenDecimals);
@@ -62,7 +62,7 @@ describe('ERC20', () => {
       const { quoteToken, quoteTokenContract, quoteTokenDecimals, toBigNumber } = coreObjects;
 
       // get the balance from the contract directly
-      const rawBalance = await quoteTokenContract.balanceOf(accounts[1].address)
+      const rawBalance = await quoteTokenContract.balanceOf(accounts[3].address);
 
       // convert it to decimal format
       const expectedBalance = toBigNumber(rawBalance, quoteTokenDecimals);
@@ -70,7 +70,7 @@ describe('ERC20', () => {
       assert.isTrue(expectedBalance.isZero());
 
       // get the balance from the erc20 class instance
-      const balance = await quoteToken.balanceOf(accounts[1].address);
+      const balance = await quoteToken.balanceOf(accounts[3].address);
 
       assert.isTrue(expectedBalance.eq(balance));
     });
@@ -103,7 +103,7 @@ describe('ERC20', () => {
 
       // convert it to decimal format
       const endingAllowance = toBigNumber(rawEndingAllowance, quoteTokenDecimals);
-      
+
       // it should be updated
       assert.isTrue(endingAllowance.eq(approvalAmount));
     });

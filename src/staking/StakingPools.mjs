@@ -45,7 +45,7 @@ export default class StakingPools extends Base {
    * @readonly
    * @memberof StakingPools
    */
-   get abi() {
+  get abi() {
     return this.sdk.contractAbi('StakingPools');
   }
 
