@@ -16,6 +16,8 @@ const balancesByContract = {};
 const cachedContracts = {};
 const contractSubscriptions = {};
 
+const prefix = 'ERC20';
+
 /**
  * An ERC20 wrapper class that tracks any data requested and returns the cached version.
  *
@@ -26,7 +28,7 @@ const contractSubscriptions = {};
 export default class ERC20 extends Base {
   constructor(sdk, address) {
     super(sdk);
-    validateIsAddress(address);
+    validateIsAddress(address, { prefix });
     this._address = address.toLowerCase();
 
     if (!allowancesByContract[this._address]) {
@@ -182,6 +184,19 @@ export default class ERC20 extends Base {
   }
 
   /**
+   * Returns the percentage of the total supply held by the address
+   *
+   * @param {string} address
+   * @return {Promise<BigNumber>}
+   * @memberof ERC20
+   */
+  async percentageOfTotalSupply(address) {
+    validateIsAddress(address, { prefix });
+    const [balance, totalSupply] = await Promise.all([this.balance(address), this.totalSupply()]);
+    return balance.dividedBy(totalSupply).multipliedBy(100);
+  }
+
+  /**
    * Returns the symbol of the token. Only looks this up once for performance reasons unless
    * overrides exist.
    *
@@ -261,7 +276,7 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async balanceOf(address, overrides) {
-    validateIsAddress(address);
+    validateIsAddress(address, { prefix });
     // track the address so we get eager loaded balance updates
     this.sdk.trackAddress(address);
 
@@ -311,8 +326,8 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async allowance(ownerAddress, spenderAddress, overrides) {
-    validateIsAddress(ownerAddress);
-    validateIsAddress(spenderAddress);
+    validateIsAddress(ownerAddress, { prefix });
+    validateIsAddress(spenderAddress, { prefix });
 
     // track both addresses for eager balance loading
     this.sdk.trackAddress(ownerAddress);
@@ -368,8 +383,8 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async approve(spenderAddress, amount, overrides = {}) {
-    validateIsAddress(spenderAddress);
-    validateIsBigNumber(this.toBigNumber(amount));
+    validateIsAddress(spenderAddress, { prefix });
+    validateIsBigNumber(this.toBigNumber(amount), { prefix });
 
     this.sdk.trackAddress(spenderAddress);
 
@@ -397,8 +412,8 @@ export default class ERC20 extends Base {
    * @memberof ERC20
    */
   async transfer(recipient, amount, overrides = {}) {
-    validateIsAddress(recipient);
-    validateIsBigNumber(this.toBigNumber(amount));
+    validateIsAddress(recipient, { prefix });
+    validateIsBigNumber(this.toBigNumber(amount), { prefix });
 
     this.sdk.trackAddress(recipient);
 
