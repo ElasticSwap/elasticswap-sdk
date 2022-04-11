@@ -428,61 +428,71 @@ export default class ERC20 extends Base {
 
   // update the approval cache if we care about the owner or spender
   async _handleApprovalEvent(log) {
-    if (log.event !== APPROVAL_EVENT) {
-      return; // ignore
-    }
+    try {
+      if (log.event !== APPROVAL_EVENT) {
+        return; // ignore
+      }
 
-    // console.log('APPROVAL', log.event, log);
+      // console.log('APPROVAL', log.event, log);
 
-    const { args } = log;
-    const { owner, spender } = args;
+      const { args } = log;
+      const { owner, spender } = args;
 
-    if (this.sdk.isTrackedAddress(owner) || this.sdk.isTrackedAddress(spender)) {
-      console.log('APPROVAL', log.event, owner, spender, log);
-      // updated the cached value
-      this.allowance(owner, spender, { multicall: true });
+      if (this.sdk.isTrackedAddress(owner) || this.sdk.isTrackedAddress(spender)) {
+        console.log('APPROVAL', log.event, owner, spender, log);
+        // updated the cached value
+        this.allowance(owner, spender, { multicall: true });
+      }
+    } catch (e) {
+      // this is best effort and an error should not bomb anything out
+      console.error('CAUGHT HANDLER ERROR', e.message)
     }
   }
 
   // uses multicall to update all tracked address balances related to the event
   async _handleSupplyEvent(log) {
-    const { args, event } = log;
+    try {
+      const { args, event } = log;
 
-    if (!SUPPLY_EVENTS.includes(event)) {
-      return; // ignore
-    }
-
-    // console.log('SUPPLY', event, log);
-
-    // update total supply
-    this.totalSupply({ multicall: true });
-
-    // Rebases require an update of all balances we care about
-    if (event === 'Rebase') {
-      console.log('SUPPLY', event, log);
-
-      // take a local copy for efficiency
-      const trackedAddress = [...this.sdk.trackedAddresses];
-
-      // trigger an update for each tracked address
-      for (let i = 0; i < trackedAddress.length; i += 1) {
-        this.balanceOf(trackedAddress[i], { multicall: true });
+      if (!SUPPLY_EVENTS.includes(event)) {
+        return; // ignore
       }
 
-      // no need to further process because all tracked addresses are queued for update
-      return;
-    }
+      // console.log('SUPPLY', event, log);
 
-    // with non-rebase events any argument may be an address
-    const potentialAddresses = args || [];
+      // update total supply
+      this.totalSupply({ multicall: true });
 
-    // update user balances for all tracked addresses and involved
-    for (let i = 0; i < potentialAddresses.length; i += 1) {
-      // isTrackedAddress filters out non-address values
-      if (this.sdk.isTrackedAddress(potentialAddresses[i])) {
-        console.log('SUPPLY', event, 'triggered balance update for', potentialAddresses[i]);
-        this.balanceOf(potentialAddresses[i], { multicall: true });
+      // Rebases require an update of all balances we care about
+      if (event === 'Rebase') {
+        console.log('SUPPLY', event, log);
+
+        // take a local copy for efficiency
+        const trackedAddress = [...this.sdk.trackedAddresses];
+
+        // trigger an update for each tracked address
+        for (let i = 0; i < trackedAddress.length; i += 1) {
+          this.balanceOf(trackedAddress[i], { multicall: true });
+        }
+
+        // no need to further process because all tracked addresses are queued for update
+        return;
       }
+
+      // with non-rebase events any argument may be an address
+      const potentialAddresses = args || [];
+
+      // update user balances for all tracked addresses and involved
+      for (let i = 0; i < potentialAddresses.length; i += 1) {
+        // isTrackedAddress filters out non-address values
+        if (this.sdk.isTrackedAddress(potentialAddresses[i])) {
+          console.log('SUPPLY', event, 'triggered balance update for', potentialAddresses[i]);
+          this.balanceOf(potentialAddresses[i], { multicall: true });
+        }
+      }
+    } catch (e) {
+      // this is best effort and an error should not bomb anything out
+      console.error('CAUGHT HANDLER ERROR', e.message)
     }
   }
 
@@ -496,44 +506,49 @@ export default class ERC20 extends Base {
 
   // monitors for events that change total supply or account balance
   async _monitorForEvents() {
-    // we're already monitoring
-    if (contractSubscriptions[this.address]) {
-      return;
-    }
-
-    contractSubscriptions[this.address] = this.sdk.subscribe(({ provider }) => {
-      // We're using that same provider so we don't need to create new listeners
-      if (cachedContracts[this.address] && provider === cachedContracts[this.address].provider) {
+    try {
+      // we're already monitoring
+      if (contractSubscriptions[this.address]) {
         return;
       }
 
-      // We're not using the same provider, so we need to clear listeners on the old contract
-      if (cachedContracts[this.address]) {
-        cachedContracts[this.address].removeAllListeners();
-      }
-
-      // grab a new readonly contract instance to add listeners to
-      cachedContracts[this.address] = this.readonlyContract;
-
-      const supplyHandler = (event) => this._handleSupplyEvent(event);
-
-      for (let i = 0; i < SUPPLY_EVENTS.length; i += 1) {
-        const event = SUPPLY_EVENTS[i];
-        // if the contract supports this event
-        if (cachedContracts[this.address].filters[event]) {
-          // listen for the event to take place
-          const filter = cachedContracts[this.address].filters[event];
-          cachedContracts[this.address].on(filter, supplyHandler);
+      contractSubscriptions[this.address] = this.sdk.subscribe(({ provider }) => {
+        // We're using that same provider so we don't need to create new listeners
+        if (cachedContracts[this.address] && provider === cachedContracts[this.address].provider) {
+          return;
         }
-      }
 
-      const approvalHandler = (event) => this._handleApprovalEvent(event);
+        // We're not using the same provider, so we need to clear listeners on the old contract
+        if (cachedContracts[this.address]) {
+          cachedContracts[this.address].removeAllListeners();
+        }
 
-      if (cachedContracts[this.address].filters[APPROVAL_EVENT]) {
-        // listen for the event to take place
-        const filter = cachedContracts[this.address].filters[APPROVAL_EVENT];
-        cachedContracts[this.address].on(filter, approvalHandler);
-      }
-    });
+        // grab a new readonly contract instance to add listeners to
+        cachedContracts[this.address] = this.readonlyContract;
+
+        const supplyHandler = (event) => this._handleSupplyEvent(event);
+
+        for (let i = 0; i < SUPPLY_EVENTS.length; i += 1) {
+          const event = SUPPLY_EVENTS[i];
+          // if the contract supports this event
+          if (cachedContracts[this.address].filters[event]) {
+            // listen for the event to take place
+            const filter = cachedContracts[this.address].filters[event];
+            cachedContracts[this.address].on(filter, supplyHandler);
+          }
+        }
+
+        const approvalHandler = (event) => this._handleApprovalEvent(event);
+
+        if (cachedContracts[this.address].filters[APPROVAL_EVENT]) {
+          // listen for the event to take place
+          const filter = cachedContracts[this.address].filters[APPROVAL_EVENT];
+          cachedContracts[this.address].on(filter, approvalHandler);
+        }
+      });
+    } catch (e) {
+      // this is best effort and an error should not bomb anything out
+      console.error('CAUGHT HANDLER ERROR', e.message)
+    }
   }
 }

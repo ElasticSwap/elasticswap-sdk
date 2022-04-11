@@ -581,10 +581,16 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   contractAbi(contractName) {
-    const deployedContract = this.env.contracts[this.networkHex][contractName];
+    try {
+      const deployedContract = this.env.contracts[this.networkHex][contractName];
 
-    if (deployedContract) {
-      return deployedContract.abi;
+      if (deployedContract) {
+        return deployedContract.abi;
+      }
+    } catch (e) {
+      console.error('MISSING ABI, contract:', contractName, e.message);
+      console.error('This was caused by a bad wallet network or bad configuration');
+      return [];
     }
   }
 
@@ -597,10 +603,16 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   contractAddress(contractName) {
-    const deployedContract = this.env.contracts[this.networkHex][contractName];
+    try {
+      const deployedContract = this.env.contracts[this.networkHex][contractName];
 
-    if (deployedContract) {
-      return deployedContract.address.toLowerCase();
+      if (deployedContract) {
+        return deployedContract.address.toLowerCase();
+      }
+    } catch (e) {
+      console.error('MISSING ADDRESS, contract:', contractName, e.message);
+      console.error('This was caused by a bad wallet network or bad configuration');
+      return [];
     }
   }
 
@@ -808,6 +820,9 @@ export class SDK extends Subscribable {
    */
   trackAddress(address) {
     validateIsAddress(address);
+    if (address === ethers.constants.AddressZero) {
+      return;
+    }
     this._addresses.add(address.toLowerCase());
   }
 
