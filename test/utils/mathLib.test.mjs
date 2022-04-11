@@ -636,9 +636,7 @@ describe('calculateInputAmountFromOutputAmount', () => {
     const numerator = outputTokenAmountBN
       .multipliedBy(inputTokenReserveQtyBN)
       .multipliedBy(BASIS_POINTS);
-    const basisPointDifference = BASIS_POINTS.minus(
-      liquidityFeeInBasisPointsBN,
-    );
+    const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
     const outputSlippageMultiplier = outputTokenReserveQtyBN.multipliedBy(
       slippagePercentBN.dividedBy(BigNumber(100)),
     );
@@ -656,9 +654,7 @@ describe('calculateInputAmountFromOutputAmount', () => {
       liquidityFeeInBasisPointsBN,
     );
 
-    expect(expectedInputAmount.toNumber()).to.equal(
-      calculatedInputAmount.toNumber(),
-    );
+    expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
   });
 
   it('Should calculate correct input amount accounting for fees and slippage', async () => {
@@ -671,9 +667,7 @@ describe('calculateInputAmountFromOutputAmount', () => {
     const numerator = outputTokenAmountBN
       .multipliedBy(inputTokenReserveQtyBN)
       .multipliedBy(BASIS_POINTS);
-    const basisPointDifference = BASIS_POINTS.minus(
-      liquidityFeeInBasisPointsBN,
-    );
+    const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
     const outputSlippageMultiplier = outputTokenReserveQtyBN.multipliedBy(
       slippagePercentBN.dividedBy(BigNumber(100)),
     );
@@ -691,9 +685,7 @@ describe('calculateInputAmountFromOutputAmount', () => {
       liquidityFeeInBasisPointsBN,
     );
 
-    expect(expectedInputAmount.toNumber()).to.equal(
-      calculatedInputAmount.toNumber(),
-    );
+    expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
   });
 
   it('Should return an error when incorrect values are provided', async () => {

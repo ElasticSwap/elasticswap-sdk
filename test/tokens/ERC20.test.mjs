@@ -125,23 +125,4 @@ describe('ERC20', () => {
       assert.isTrue(totalSupply.eq(expectedTotalSupply));
     });
   });
-
-  describe('totalSupply', () => {
-    it('Gets correct total supply', async () => {
-      const accounts = await ethers.getSigners();
-
-      await deployments.fixture();
-      const quoteTokenMock = await deployments.get('QuoteToken');
-      const quoteTokenContract = new ethers.Contract(
-        quoteTokenMock.address,
-        quoteTokenMock.abi,
-        accounts[0],
-      );
-
-      const erc20 = new elasticSwap.ERC20(sdk, quoteTokenMock.address);
-      const totalSupply = await erc20.totalSupply();
-      const expectedTotalSupply = await quoteTokenContract.totalSupply();
-      assert.isTrue(totalSupply.eq(expectedTotalSupply));
-    });
-  });
 });
