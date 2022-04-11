@@ -220,7 +220,6 @@ export default class StakingPool extends Base {
    * @memberof StakingPool
    */
   async load() {
-    console.log('loading staking pool', this.id);
     this._lastUpdate = Date.now();
 
     // Only valid on Avalanche. We'll never be deploying this contract elsewhere
@@ -297,13 +296,6 @@ export default class StakingPool extends Base {
     this._tvl = tvl;
 
     // visibility check
-    console.log(
-      'visibility check on pool',
-      this.id,
-      this.staked.toFixed(),
-      this.tokenBalance.toFixed(),
-      this.tokenBalance.plus(this.staked).toFixed(),
-    );
     this._visible = !this.tokenBalance.plus(this.staked).isZero();
 
     if (this.token.address === slp.address || this.token.address === ticToken.address) {
