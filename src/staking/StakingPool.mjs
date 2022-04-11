@@ -9,6 +9,13 @@ const slpLogo = './images/stake/tic-usdc-sushi.svg';
 
 const TIC_USDC_SLP_ADDRESS = '0x4cf9dc05c715812fead782dc98de0168029e05c8';
 
+/**
+ * Provides interface for compiled staking pool data.
+ *
+ * @export
+ * @class StakingPool
+ * @extends {Base}
+ */
 export default class StakingPool extends Base {
   constructor(sdk, poolId) {
     super(sdk);
@@ -30,30 +37,72 @@ export default class StakingPool extends Base {
     });
   }
 
+  /**
+   * The most recent account noticed by the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get account() {
     return this._account;
   }
 
+  /**
+   * A boolean indicating if the pool is currently active (providing rewards)
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get active() {
     return this.rewardRate.isGreaterThan(0);
   }
 
+  /**
+   * The apr of the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get apr() {
     return this._apr;
   }
 
+  /**
+   * A promise which is resolved after the first data load
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get awaitInitialized() {
     return this._promise;
   }
 
+  /**
+   * The url of an image to use with the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get image() {
     return this.name.match(/SLP/) ? slpLogo : ticLogo;
   }
 
+  /**
+   * The id of the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get id() {
     return this._poolId;
   }
 
+  /**
+   * The name of the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get name() {
     if (this.token.address === this.sdk.contractAddress('TicToken')) {
       return 'TIC';
@@ -74,42 +123,102 @@ export default class StakingPool extends Base {
     return 'TIC/USDC.e SLP';
   }
 
+  /**
+   * The reward rate of the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get rewardRate() {
     return this._rewardRate;
   }
 
+  /**
+   * The staked balance of account
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get staked() {
     return this._staked;
   }
 
+  /**
+   * The ERC20 instance of the token which can be deposited
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get token() {
     return this._token;
   }
 
+  /**
+   * The amount of token the staking pool is allowed to pull from account
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get tokenAllowance() {
     return this._tokenAllowance;
   }
 
+  /**
+   * The current token balance of account
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get tokenBalance() {
     return this._tokenBalance;
   }
 
+  /**
+   * The total value locked in the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get tvl() {
     return this._tvl;
   }
 
+  /**
+   * The amount of unclaimed rewards for account
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get unclaimed() {
     return this._unclaimed;
   }
 
+  /**
+   * The value of each token deposited in the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get valuePerToken() {
     return this._valuePerToken;
   }
 
+  /**
+   * Boolean indicating if account can see the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
   get visible() {
     return this._visible;
   }
 
+  /**
+   * Loads all of the pool data
+   *
+   * @return {bool} 
+   * @memberof StakingPool
+   */
   async load() {
     console.log('loading staking pool', this.id);
     this._lastUpdate = Date.now();

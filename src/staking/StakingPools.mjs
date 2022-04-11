@@ -1,4 +1,5 @@
 import Base from '../Base.mjs';
+import StakingPool from './StakingPool.mjs';
 
 // 365.25 * 24 * 60 * 60
 const SECONDS_PER_YEAR = 31557600;
@@ -190,10 +191,7 @@ export default class StakingPools extends Base {
     //   TIC = $10 (launch price)
     //   For better accuracy, the current price of TIC should be used (div 10, mul current price)
     if (poolToken === this.sdk.contractAddress('TimeTokenPreSeed')) {
-      return poolRate
-        .multipliedBy(SECONDS_PER_YEAR)
-        .dividedBy(totalDeposited)
-        .multipliedBy('435.859');
+      return this.toBigNumber('0.1');
     }
 
     // time token DAO
@@ -384,6 +382,19 @@ export default class StakingPools extends Base {
   }
 
   /**
+   * returns an instance of the StakingPool class with all data loaded
+   *
+   * @param {number} poolId - The id of the pool
+   * @return {Promise<StakingPool>}
+   * @memberof StakingPools
+   */
+  async stakingPool(poolId) {
+    const stakingPool = new StakingPool(this.sdk, poolId);
+    await stakingPool.awaitInitialized;
+    return stakingPool;
+  }
+
+  /**
    * Gets the total reward weight of all the pools.
    *
    * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
@@ -420,7 +431,7 @@ export default class StakingPools extends Base {
   // and the returns the TransactionReceipt.
   async _handleTransaction(tx) {
     this.sdk.notify(tx);
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait(2);
     return receipt;
   }
 }
