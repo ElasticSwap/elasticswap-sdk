@@ -216,7 +216,7 @@ export default class StakingPool extends Base {
   /**
    * Loads all of the pool data
    *
-   * @return {bool} 
+   * @return {bool}
    * @memberof StakingPool
    */
   async load() {
@@ -246,7 +246,16 @@ export default class StakingPool extends Base {
 
     this._account = this.sdk.account || ethers.constants.AddressZero;
 
-    const [poolRewardRate, poolTokenAddress, apr, slpPrice, staked, unclaimed, slpTotalSupply, slpTicSupply] = await Promise.all([
+    const [
+      poolRewardRate,
+      poolTokenAddress,
+      apr,
+      slpPrice,
+      staked,
+      unclaimed,
+      slpTotalSupply,
+      slpTicSupply,
+    ] = await Promise.all([
       this.sdk.stakingPools.getPoolRewardRate(this.id),
       this.sdk.stakingPools.getPoolToken(this.id),
       this.sdk.stakingPools.getAPR(this.id),
@@ -271,7 +280,10 @@ export default class StakingPool extends Base {
 
     // if this is the TIC token, we can use the spot value of the SLP pool
     if (this.token.address === ticAddress) {
-      this._valuePerToken = slpPrice.multipliedBy(slpTotalSupply).dividedBy(slpTicSupply).dividedBy(2);
+      this._valuePerToken = slpPrice
+        .multipliedBy(slpTotalSupply)
+        .dividedBy(slpTicSupply)
+        .dividedBy(2);
     }
 
     const [tokenBalance, tokenAllowance, tvl] = await Promise.all([
@@ -285,7 +297,13 @@ export default class StakingPool extends Base {
     this._tvl = tvl;
 
     // visibility check
-    console.log('visibility check on pool', this.id, this.staked.toFixed(), this.tokenBalance.toFixed(), this.tokenBalance.plus(this.staked).toFixed())
+    console.log(
+      'visibility check on pool',
+      this.id,
+      this.staked.toFixed(),
+      this.tokenBalance.toFixed(),
+      this.tokenBalance.plus(this.staked).toFixed(),
+    );
     this._visible = !this.tokenBalance.plus(this.staked).isZero();
 
     if (this.token.address === slp.address || this.token.address === ticToken.address) {

@@ -445,7 +445,7 @@ export default class ERC20 extends Base {
       }
     } catch (e) {
       // this is best effort and an error should not bomb anything out
-      console.error('CAUGHT HANDLER ERROR', e.message)
+      console.error('CAUGHT HANDLER ERROR', e.message);
     }
   }
 
@@ -492,7 +492,7 @@ export default class ERC20 extends Base {
       }
     } catch (e) {
       // this is best effort and an error should not bomb anything out
-      console.error('CAUGHT HANDLER ERROR', e.message)
+      console.error('CAUGHT HANDLER ERROR', e.message);
     }
   }
 
@@ -548,7 +548,7 @@ export default class ERC20 extends Base {
       });
     } catch (e) {
       // this is best effort and an error should not bomb anything out
-      console.error('CAUGHT HANDLER ERROR', e.message)
+      console.error('CAUGHT HANDLER ERROR', e.message);
     }
   }
 }

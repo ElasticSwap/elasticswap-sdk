@@ -77,7 +77,9 @@ export default class SLP extends ERC20 {
       return this._token0;
     }
 
-    this._token0 = this.sdk.erc20(await this.sdk.multicall.enqueue(this.abi, this.address, 'token0'));
+    this._token0 = this.sdk.erc20(
+      await this.sdk.multicall.enqueue(this.abi, this.address, 'token0'),
+    );
     return this._token0;
   }
 
@@ -89,7 +91,9 @@ export default class SLP extends ERC20 {
       return this._token1;
     }
 
-    this._token1 = this.sdk.erc20(await this.sdk.multicall.enqueue(this.abi, this.address, 'token1'));
+    this._token1 = this.sdk.erc20(
+      await this.sdk.multicall.enqueue(this.abi, this.address, 'token1'),
+    );
     return this._token1;
   }
 }
