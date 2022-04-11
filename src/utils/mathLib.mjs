@@ -70,14 +70,18 @@ export const calculateAddBaseTokenLiquidityQuantities = (
     internalBalancesBN.baseTokenReserveQty,
   );
 
-  const quoteTokenQtyDecayChange = baseTokenQty.multipliedBy(internalQuoteToBaseTokenRatio);
+  const quoteTokenQtyDecayChange = baseTokenQty.multipliedBy(
+    internalQuoteToBaseTokenRatio,
+  );
 
   if (quoteTokenQtyDecayChange.isLessThanOrEqualTo(ZERO)) {
     throw INSUFFICIENT_CHANGE_IN_DECAY;
   }
 
   // we can now calculate the total amount of quote token decay
-  const quoteTokenDecay = maxBaseTokenQty.multipliedBy(internalQuoteToBaseTokenRatio);
+  const quoteTokenDecay = maxBaseTokenQty.multipliedBy(
+    internalQuoteToBaseTokenRatio,
+  );
 
   if (quoteTokenDecay.isLessThanOrEqualTo(ZERO)) {
     throw NO_QUOTE_DECAY;
@@ -142,7 +146,9 @@ export const calculateAddQuoteTokenLiquidityQuantities = (
   );
 
   // alphaDecay / omega (A/B)
-  const maxQuoteTokenQty = baseTokenDecay.dividedBy(internalBaseTokenToQuoteTokenRatio);
+  const maxQuoteTokenQty = baseTokenDecay.dividedBy(
+    internalBaseTokenToQuoteTokenRatio,
+  );
 
   if (quoteTokenQtyMinBN.isGreaterThanOrEqualTo(maxQuoteTokenQty)) {
     throw INSUFFICIENT_DECAY;
@@ -155,7 +161,9 @@ export const calculateAddQuoteTokenLiquidityQuantities = (
     quoteTokenQty = quoteTokenQtyDesiredBN;
   }
 
-  const baseTokenQtyDecayChange = quoteTokenQty.multipliedBy(internalBaseTokenToQuoteTokenRatio);
+  const baseTokenQtyDecayChange = quoteTokenQty.multipliedBy(
+    internalBaseTokenToQuoteTokenRatio,
+  );
 
   if (baseTokenQtyDecayChange.isLessThanOrEqualTo(ZERO)) {
     throw INSUFFICIENT_DECAY;
@@ -216,7 +224,9 @@ export const calculateAddTokenPairLiquidityQuantities = (
   const baseTokenQtyMinBN = toBigNumber(baseTokenQtyMin);
   const quoteTokenQtyMinBN = toBigNumber(quoteTokenQtyMin);
   const quoteTokenReserveQtyBN = toBigNumber(quoteTokenReserveQty);
-  const totalSupplyOfLiquidityTokensBN = toBigNumber(totalSupplyOfLiquidityTokens);
+  const totalSupplyOfLiquidityTokensBN = toBigNumber(
+    totalSupplyOfLiquidityTokens,
+  );
   const internalBalancesBN = internalBalancesBNConverter(internalBalances);
 
   let baseTokenQty;
@@ -820,10 +830,12 @@ export const calculateTokenAmountsFromLPTokens = (
   const slippageMultiplier = toBigNumber(1).minus(slippagePercentBN.dividedBy(toBigNumber(100)));
 
   const baseTokenRecieved = baseTokenReserveQtyBN.multipliedBy(lpRatio);
-  const baseTokenRecievedMin = baseTokenRecieved.multipliedBy(slippageMultiplier);
+  const baseTokenRecievedMin =
+    baseTokenRecieved.multipliedBy(slippageMultiplier);
 
   const quoteTokenReceived = quoteTokenReserveQtyBN.multipliedBy(lpRatio);
-  const quoteTokenReceivedMin = quoteTokenReceived.multipliedBy(slippageMultiplier);
+  const quoteTokenReceivedMin =
+    quoteTokenReceived.multipliedBy(slippageMultiplier);
 
   const tokenQtys = {
     quoteTokenReceived: quoteTokenReceivedMin,
