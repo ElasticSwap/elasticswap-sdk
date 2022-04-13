@@ -5,19 +5,9 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy, log } = deployments;
   const namedAccounts = await getNamedAccounts();
   const { admin } = namedAccounts;
-  const initialSupply = 1000000000000;
 
-  const baseToken = await deploy('DummyBaseToken', {
-    from: admin,
-    contract: ElasticMock,
-    args: ['DummyBaseToken', 'DBT', initialSupply, admin],
-  });
-  const quoteToken = await deploy('DummyQuoteToken', {
-    from: admin,
-    contract: ElasticMock,
-    args: ['DummyQuoteToken', 'DQT', initialSupply, admin],
-  });
-
+  const baseToken = await deployments.get('ExchangeBaseToken');
+  const quoteToken = await deployments.get('ExchangeQuoteToken');
   const exchangeFactory = await deployments.get('ExchangeFactory');
   const exchangeFactoryAddress = exchangeFactory.address;
   const mathLib = await deployments.get('MathLib');
@@ -43,4 +33,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   }
 };
 module.exports.tags = ['Exchange'];
-module.exports.dependencies = ['MathLib', 'ExchangeFactory'];
+module.exports.dependencies = ['MathLib', 'ExchangeFactory', 'ExchangeBaseToken', 'ExchangeQuoteToken'];

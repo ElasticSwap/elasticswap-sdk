@@ -1,7 +1,6 @@
 /* eslint consistent-return: 0 */
 
 import Notify from 'bnc-notify';
-import ERC20Contract from '@elasticswap/elasticswap/artifacts/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' assert { type: 'json' };
 
 import { ethers } from 'ethers';
 
@@ -16,6 +15,8 @@ import SubscribableClass from './Subscribable.mjs';
 import TokenListClass from './tokens/TokenList.mjs';
 import TokensByAddressClass from './tokens/TokensByAddress.mjs';
 
+import { processContracts } from './utils/contracts.mjs';
+
 import {
   areArraysEqual,
   areObjectsEqual,
@@ -23,6 +24,19 @@ import {
   arePrimativesEqual,
   isEqual,
 } from './utils/equality.mjs';
+
+import {
+  isAddress,
+  isArray,
+  isBigNumber,
+  isDate,
+  isFunction,
+  isNumber,
+  isPOJO,
+  isSet,
+  isString,
+  isTransactionHash,
+} from './utils/typeChecks.mjs';
 
 import {
   amountFormatter,
@@ -38,19 +52,6 @@ import {
   truncate,
   upTo,
 } from './utils/utils.mjs';
-
-import {
-  isAddress,
-  isArray,
-  isBigNumber,
-  isDate,
-  isFunction,
-  isNumber,
-  isPOJO,
-  isSet,
-  isString,
-  isTransactionHash,
-} from './utils/typeChecks.mjs';
 
 import {
   validate,
@@ -127,6 +128,7 @@ export const TokensByAddress = TokensByAddressClass;
  * @extends {Subscribable}
  */
 export class SDK extends Subscribable {
+  /* eslint-disable */
   /**
    * Creates an instance of SDK.
    *
@@ -134,26 +136,25 @@ export class SDK extends Subscribable {
    * @param {function} config.customFetch - should implement the Fetch API (optional)
    * @param {Object} config.env - environment configuration
    * @param {Object} config.env.blocknative - bnc-notify initialization options
-   * @param {Object} config.env.contracts - deployed contract configuration by network
-   * @param {hardhat-deploy.Export} config.env.contracts[chainIdHex]
-   * @param {hardhat-deploy.MultiExport} config.env.deployments - deployed contract configuration
+   * @param {Array<hardhat-deploy.MultiExport|Object{constractName: string, abi: []}>} config.env.contracts - deployed contract configuration by network
    * @param {ethers.providers.Provider} config.provider - default provider (optional)
    * @param {ethers.Signer} config.signer - initial ethers signer (optional)
    * @param {StorageAdapter} config.storageAdapter - (optional)
    * @memberof SDK
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API}
    * @see {@link https://docs.blocknative.com/notify#initialization}
-   * @see {@link https://www.npmjs.com/package/hardhat-deploy/v/0.10.4#exporting-deployments}
+   * @see {@link https://www.npmjs.com/package/hardhat-deploy#exporting-deployments}
    * @see {@link https://docs.ethers.io/v5/api/providers/provider/}
    * @see {@link https://docs.ethers.io/v5/api/signer/}
    * @see {@link StorageAdapter}
    */
+  /* eslint-enable */
   constructor({ customFetch, env, provider, signer, storageAdapter }) {
     super();
 
     this._initialized = false;
 
-    this.env = env;
+    this._env = processContracts(env);
 
     this._contract = ({ address, abi }) => new ethers.Contract(address, abi);
     this._storageAdapter = storageAdapter || new LocalStorageAdapter();
@@ -227,6 +228,15 @@ export class SDK extends Subscribable {
    */
   get blockNumber() {
     return this._blockNumber;
+  }
+
+  /**
+   * @readonly
+   * @returns {Object} - The env object after constructor processing of contracts
+   * @memberof SDK
+   */
+  get env() {
+    return this._env;
   }
 
   /**
@@ -561,15 +571,12 @@ export class SDK extends Subscribable {
   contract({ abi, address, readonly = false }) {
     const { provider, signer } = this;
 
+    // track the contract's balance
     this.trackAddress(address);
 
+    // generate the connected contract
     const connection = readonly ? provider : signer || provider;
-    const contract = this._contract({
-      abi: abi || ERC20Contract.abi,
-      address,
-    }).connect(connection);
-
-    return contract;
+    return this._contract({ abi, address }).connect(connection);
   }
 
   /**
@@ -796,18 +803,19 @@ export class SDK extends Subscribable {
    * is an instance of the ERC20 class and automatically tracks the balance of sdk.account.
    *
    * @param {string} url - url to load the tokenList from
+   * @param {Object} data - the data to use instead of loading the list from the url (optional)
    * @return {TokenList}
    * @memberof SDK
    */
-  async tokenList(url) {
+  async tokenList(url, data) {
     const key = btoa(url.toLowerCase());
 
-    if (this._tokenLists[key]) {
+    if (this._tokenLists[key] && !data) {
       await this._tokenLists[key].awaitInitialized;
       return this._tokenLists[key];
     }
 
-    this._tokenLists[key] = new TokenList(this, url);
+    this._tokenLists[key] = new TokenList(this, url, data);
     await this._tokenLists[key].awaitInitialized;
     return this._tokenLists[key];
   }

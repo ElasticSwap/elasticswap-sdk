@@ -1,79 +1,12 @@
 import Cachable from '../Cachable.mjs';
-import ERC20 from './ERC20.mjs';
-import { toBigNumber, toHex } from '../utils/utils.mjs';
+import Token from './Token.mjs';
+import { toBigNumber } from '../utils/utils.mjs';
 import { validateIsAddress } from '../utils/validations.mjs';
 
 const UPDATE_INTERVAL = 300000; // 5 minutes
 
 const versionCompilation = ({ major = 0, minor = 0, patch = 0 } = {}) =>
   toBigNumber(`${major}${minor.toString().padStart(6, '0')}${patch.toString().padStart(6, '0')}`);
-
-/**
- * Provides a wrapped for the ERC20 class that returns everything expected to be in a tokenlist
- * token record while also providing ERC20 contract functionality.
- *
- * @class Token
- * @extends {ERC20}
- */
-class Token extends ERC20 {
-  constructor(sdk, data) {
-    super(sdk, data.address);
-    this._data = data;
-
-    // replicate touches between this and the standard ERC20 instance from the sdk
-    this.sdk.erc20(this.address).subscribe(() => this.touch());
-  }
-
-  /**
-   * The chainId as provided by the tokenlist
-   *
-   * @readonly
-   * @memberof Token
-   */
-  get chainId() {
-    return this._data.chainId;
-  }
-
-  /**
-   * The chainHex derived from the chainId
-   *
-   * @readonly
-   * @memberof Token
-   */
-  get chainHex() {
-    return toHex(this.chainId);
-  }
-
-  /**
-   * The URL of the token's logo as provided by the tokenlist
-   *
-   * @readonly
-   * @memberof Token
-   */
-  get logoURI() {
-    return this._data.logoURI;
-  }
-
-  /**
-   * The name of the token as provided by the tokenlist
-   *
-   * @readonly
-   * @memberof Token
-   */
-  get name() {
-    return this._data.name;
-  }
-
-  /**
-   * The symbol of the token as provided by the tokenlist
-   *
-   * @readonly
-   * @memberof Token
-   */
-  get symbol() {
-    return this._data.symbol;
-  }
-}
 
 /**
  * A wrapper class for token lists that links into the ERC20 contract class
@@ -83,11 +16,11 @@ class Token extends ERC20 {
  * @extends {Base}
  */
 export default class TokenList extends Cachable {
-  constructor(sdk, url) {
+  constructor(sdk, url, data) {
     super(sdk);
 
     this._account = this.sdk.account;
-    this._data = {};
+    this._data = data || {};
     this._netorkId = this.sdk.networkId;
     this._tokens = {}; // updated by _processData
     this._url = url;
@@ -223,6 +156,13 @@ export default class TokenList extends Cachable {
 
   // loads data from the cache if it exists and then fetches the most up to date version
   _load(resolve) {
+    // the data came in directly, so we don't ever want to fetch it
+    if (this._data) {
+      this._processData();
+      this._doNotUpdate = true;
+      resolve();
+    }
+
     // look at cache
     this.cache.promise.then(() => {
       // if a cahced version exists, use that first
@@ -262,6 +202,10 @@ export default class TokenList extends Cachable {
 
   // gets a fresh version of the tokenlist and triggers a data update if the version has changed
   _update(resolve) {
+    if (this._doNotUpdate) {
+      return Promise.resolve();
+    }
+
     // load from url
     return new Promise((res) => {
       const blankResolve = () => res();

@@ -81,6 +81,16 @@ export default class ERC20 extends Base {
   }
 
   /**
+   * Returns all of the tracked allowances
+   *
+   * @readonly
+   * @memberof ERC20
+   */
+  get allowances() {
+    return allowancesByContract[this.address];
+  }
+
+  /**
    * Returns all of the tracked balances
    *
    * @readonly
@@ -293,8 +303,8 @@ export default class ERC20 extends Base {
     }
 
     // return the cached value unless this is a multicall request
-    if (balancesByContract[this.address][addressLower] && !overrides?.multicall) {
-      return balancesByContract[this.address][addressLower];
+    if (this.balances[addressLower] && !overrides?.multicall) {
+      return this.balances[addressLower];
     }
 
     // get decimals and balance using multicall
@@ -304,13 +314,13 @@ export default class ERC20 extends Base {
     ]);
 
     // save balance
-    balancesByContract[this.address][addressLower] = this.toBigNumber(balance, decimals);
+    this._updateCachedBalance(addressLower, this.toBigNumber(balance, decimals));
 
     // update subscribers
     this.sdk.erc20(this.address).touch();
 
     // return balance
-    return balancesByContract[this.address][addressLower];
+    return this.balances[addressLower];
   }
 
   /**
@@ -350,8 +360,8 @@ export default class ERC20 extends Base {
     const key = toKey(ownerAddress, spenderAddress);
 
     // return the cached value unless this is a multicall request
-    if (allowancesByContract[this.address][key] && !overrides?.multicall) {
-      return allowancesByContract[this.address][key];
+    if (this.allowances[key] && !overrides?.multicall) {
+      return this.allowances[key];
     }
 
     // get decimals and balance using multicall
@@ -364,13 +374,17 @@ export default class ERC20 extends Base {
     ]);
 
     // save balance
-    allowancesByContract[this.address][key] = this.toBigNumber(allowance, decimals);
+    this._updateCachedAllowance(
+      ownerAddress,
+      spenderAddress,
+      this.toBigNumber(allowance, decimals),
+    );
 
     // update subscribers
     this.sdk.erc20(this.address).touch();
 
     // retrun balance
-    return allowancesByContract[this.address][key];
+    return this.allowances[key];
   }
 
   /**
@@ -550,5 +564,21 @@ export default class ERC20 extends Base {
       // this is best effort and an error should not bomb anything out
       console.error('CAUGHT HANDLER ERROR', e.message);
     }
+  }
+
+  // single place to update the cache for balances
+  _updateCachedAllowance(ownerAddress, spenderAddress, allowance) {
+    validateIsAddress(ownerAddress);
+    validateIsAddress(spenderAddress);
+    validateIsBigNumber(allowance);
+    const key = toKey(ownerAddress, spenderAddress);
+    allowancesByContract[this.address][key] = allowance;
+  }
+
+  // single place to update the cache for allowances
+  _updateCachedBalance(address, balance) {
+    validateIsAddress(address);
+    validateIsBigNumber(balance);
+    balancesByContract[this.address][address.toLowerCase()] = balance;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@elasticswap/sdk",
-  "version": "0.0.10",
+  "version": "0.0.12",
   "description": "Official SDK for ElasticSwap",
   "main": "dist/index.js",
   "repository": "https://github.com/elasticswap/elasticswap-sdk",
@@ -14,16 +14,19 @@
   "scripts": {
     "analyzer": "yarn stats && yarn webpack-bundle-analyzer stats.json",
     "build": "npx webpack -c ./webpack.config.production.js",
-    "dev": "yarn prettier:fix && yarn lint:fix && npx webpack -c ./webpack.config.js --watch",
+    "dev": "yarn prettier:js && yarn lint:js && npx webpack -c ./webpack.config.js --watch",
     "docs": "npx jsdoc2md -c .jsdoc.json src/index.mjs > dist/readme.md",
-    "lint": "npx eslint src/*.mjs src/**/*.mjs test/**/*.mjs test/**/*.js",
-    "lint:fix": "npx eslint src/*.mjs src/**/*.mjs test/**/*.mjs test/**/*.js --fix",
-    "prerelease": "yarn build",
-    "prettier": "npx prettier --check src/*.mjs src/**/*.mjs test/**/*.mjs test/**/*.js",
-    "prettier:fix": "npx prettier --write src/*.mjs src/**/*.mjs test/**/*.mjs test/**/*.js",
+    "lint": "yarn run prettier && yarn run lint:js && yarn run lint:test",
+    "lint:js": "npx eslint src/*.mjs src/**/*.mjs --fix",
+    "lint:test": "npx eslint test/*.mjs test/**/*.mjs --fix",
+    "prerelease": "yarn lint && yarn build",
+    "prettier": "yarn run prettier:js && yarn run prettier:test",
+    "prettier:js": "npx prettier --write src/*.mjs --write src/**/*.mjs --write src/**/**/*.mjs --write src/**/**/**/*.mjs",
+    "prettier:test": "npx prettier --write test/*.mjs --write test/**/*.mjs --write test/**/**/*.mjs --write test/**/**/**/*.mjs",
     "release": "npm publish --access=public",
     "stats": "npx webpack -c ./webpack.config.js --json > stats.json",
-    "test": "mocha -timeout 10000 -exit './test/**/**.test.mjs' --experimental-json-modules"
+    "test": "yarn run prettier:test && yarn run lint:test && yarn run test:run",
+    "test:run": "mocha -timeout 10000 -exit './test/**/**.test.mjs' --experimental-json-modules"
   },
   "devDependencies": {
     "@babel/cli": "^7.15.7",
@@ -32,6 +35,7 @@
     "@babel/plugin-syntax-import-assertions": "^7.16.7",
     "@babel/preset-env": "^7.15.8",
     "@babel/register": "^7.15.3",
+    "@elasticswap/elasticswap": "0.0.11",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "babel-loader": "^8.2.3",
@@ -52,7 +56,6 @@
     "webpack-cli": "^4.9.1"
   },
   "dependencies": {
-    "@elasticswap/elasticswap": "0.0.11",
     "bignumber.js": "^9.0.1",
     "bnc-notify": "^1.9.1",
     "ethers": "^5.5.1",

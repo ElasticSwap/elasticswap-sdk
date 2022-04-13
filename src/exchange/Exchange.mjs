@@ -38,7 +38,7 @@ export default class Exchange extends ERC20 {
     this.sdk.erc20(this.address).subscribe(() => this.touch());
 
     // update base and quote token addresses to make sure they're in the right order
-    Promise.all([
+    this._promise = Promise.all([
       this.sdk.multicall.enqueue(this.abi, this.address, 'baseToken'),
       this.sdk.multicall.enqueue(this.abi, this.address, 'quoteToken'),
       this.sdk.multicall.enqueue(this.abi, this.address, 'decimals'),
@@ -49,13 +49,6 @@ export default class Exchange extends ERC20 {
       this._baseTokenAddress = baseToken.toLowerCase();
       this._quoteTokenAddress = quoteToken.toLowerCase();
       this.touch();
-      // load all the core data
-      this.baseToken.decimals();
-      this.baseToken.name();
-      this.baseToken.symbol();
-      this.quoteToken.decimals();
-      this.quoteToken.name();
-      this.quoteToken.symbol();
     });
   }
 
@@ -79,6 +72,16 @@ export default class Exchange extends ERC20 {
    */
   get abi() {
     return this.sdk.contractAbi('Exchange');
+  }
+
+  /**
+   * Provides a promise that is resolved after the initial data load.
+   *
+   * @readonly
+   * @memberof Exchange
+   */
+  get awaitInitialized() {
+    return this._promise;
   }
 
   /**
@@ -126,7 +129,7 @@ export default class Exchange extends ERC20 {
    * @memberof Exchange
    */
   get baseToken() {
-    return this.sdk.erc20(this.baseTokenAddress);
+    return this.sdk.tokensByAddress.tokenByAddress(this.baseTokenAddress);
   }
 
   /**
@@ -136,7 +139,7 @@ export default class Exchange extends ERC20 {
    * @memberof Exchange
    */
   get quoteToken() {
-    return this.sdk.erc20(this.quoteTokenAddress);
+    return this.sdk.tokensByAddress.tokenByAddress(this.quoteTokenAddress);
   }
 
   /**
@@ -269,71 +272,65 @@ export default class Exchange extends ERC20 {
     overrides = {},
   ) {
     // Validate all the inputs
-    validateIsBigNumber(this.toBigNumber(baseTokenQtyDesired));
-    validateIsBigNumber(this.toBigNumber(quoteTokenQtyDesired));
-    validateIsBigNumber(this.toBigNumber(baseTokenQtyMin));
-    validateIsBigNumber(this.toBigNumber(quoteTokenQtyMin));
-    validateIsAddress(liquidityTokenRecipient);
-    validateIsAddress(this.sdk.account);
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyDesired), { prefix });
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyDesired), { prefix });
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyMin), { prefix });
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyMin), { prefix });
+    validateIsAddress(liquidityTokenRecipient, { prefix });
+    validateIsAddress(this.sdk.account, { prefix });
+
+    this.sdk.trackAddress(liquidityTokenRecipient);
 
     const [
-      baseTokenSymbol,
-      quoteTokenSymbol,
       baseTokenBalance,
       quoteTokenBalance,
       baseTokenAllowance,
       quoteTokenAllowance,
-      baseTokenDecimals,
-      quoteTokenDecimals,
     ] = await Promise.all([
-      this.baseToken.symbol(),
-      this.quoteToken.symbol(),
       this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
       this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
       this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
       this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
-      this.baseToken.decimals(),
-      this.quoteToken.decimals(),
     ]);
 
     // save the user gas by confirming that the minimum values are not greater than the maximum ones
     validate(this.toBigNumber(baseTokenQtyMin).lte(baseTokenQtyDesired), {
-      message: `Minimum amount of ${baseTokenSymbol} requested is greater than the maximum.`,
+      message: `Minimum amount of ${this.baseToken.symbol} requested is greater than the maximum.`,
       prefix,
     });
 
     validate(this.toBigNumber(quoteTokenQtyMin).lte(quoteTokenQtyDesired), {
-      message: `Minimum amount of ${quoteTokenSymbol} requested is greater than the maximum.`,
+      message: `Minimum amount of ${this.quoteToken.symbol} requested is greater than the maximum.`,
       prefix,
     });
 
     // save the user gas by confirming that the allowances and balance match the request
     validate(this.toBigNumber(baseTokenQtyDesired).lt(baseTokenBalance), {
-      message: `You don't have enough ${baseTokenSymbol}`,
+      message: `You don't have enough ${this.baseToken.symbol}`,
       prefix,
     });
 
     validate(this.toBigNumber(quoteTokenQtyDesired).lt(quoteTokenBalance), {
-      message: `You don't have enough ${quoteTokenSymbol}`,
+      message: `You don't have enough ${this.quoteToken.symbol}`,
       prefix,
     });
 
     validate(baseTokenAllowance.gte(baseTokenQtyDesired), {
-      message: `Not allowed to spend that much ${baseTokenSymbol}`,
+      message: `Not allowed to spend that much ${this.baseToken.symbol}`,
       prefix,
     });
 
     validate(quoteTokenAllowance.gte(quoteTokenQtyDesired), {
-      message: `Not allowed to spend that much ${quoteTokenSymbol}`,
+      message: `Not allowed to spend that much ${this.quoteToken.symbol}`,
       prefix,
     });
 
     // build the payload
     const payload = [
-      this.toEthersBigNumber(baseTokenQtyDesired, baseTokenDecimals),
-      this.toEthersBigNumber(quoteTokenQtyDesired, quoteTokenDecimals),
-      this.toEthersBigNumber(baseTokenQtyMin, baseTokenDecimals),
-      this.toEthersBigNumber(quoteTokenQtyMin, quoteTokenDecimals),
+      this.toEthersBigNumber(baseTokenQtyDesired, this.baseToken.decimals),
+      this.toEthersBigNumber(quoteTokenQtyDesired, this.quoteToken.decimals),
+      this.toEthersBigNumber(baseTokenQtyMin, this.baseToken.decimals),
+      this.toEthersBigNumber(quoteTokenQtyMin, this.quoteToken.decimals),
       liquidityTokenRecipient,
       expirationTimestamp,
       this.sanitizeOverrides(overrides),
@@ -361,41 +358,57 @@ export default class Exchange extends ERC20 {
     return receipt;
   }
 
-  async removeLiquidity() {
-    // liquidityTokenQty,
-    // baseTokenQtyMin,
-    // quoteTokenQtyMin,
-    // tokenRecipient,
-    // expirationTimestamp,
-    // overrides = {},
-    /*
-    const liquidityTokenQtyBN = toBigNumber(liquidityTokenQty);
-    const lpTokenBalance = toBigNumber(await this.lpTokenBalance);
-    const lpTokenAllowance = toBigNumber(await this.lpTokenAllowance);
+  async removeLiquidity(
+    liquidityTokenQty,
+    baseTokenQtyMin,
+    quoteTokenQtyMin,
+    tokenRecipient,
+    expirationTimestamp,
+    overrides = {},
+  ) {
+    validateIsBigNumber(this.toBigNumber(liquidityTokenQty), { prefix });
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyMin), { prefix });
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyMin), { prefix });
+    validateIsAddress(tokenRecipient, { prefix });
+    validateIsAddress(this.sdk.account, { prefix });
 
-    if (expirationTimestamp < new Date().getTime() / 1000) {
-      throw this.errorHandling.error('TIMESTAMP_EXPIRED');
-    }
-    if (lpTokenBalance.lt(liquidityTokenQtyBN)) {
-      throw this.errorHandling.error('NOT_ENOUGH_LP_TOKEN_BALANCE');
-    }
-    if (lpTokenAllowance.lt(liquidityTokenQtyBN)) {
-      throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
-    }
+    this.sdk.trackAddress(tokenRecipient);
 
-    const baseTokenQtyMinEBN = toEthersBigNumber(baseTokenQtyMin);
-    const quoteTokenQtyMinEBN = toEthersBigNumber(quoteTokenQtyMin);
+    const [lpBalance, lpAllowance] = await Promise.all([
+      this.balanceOf(this.sdk.account, { multicall: true }),
+      this.allowance(this.sdk.account, this.address, { multicall: true }),
+    ]);
 
-    const txStatus = await this.contract.removeLiquidity(
-      toEthersBigNumber(liquidityTokenQty),
-      baseTokenQtyMinEBN,
-      quoteTokenQtyMinEBN,
-      tokenRecipient,
-      expirationTimestamp,
-      this.sanitizeOverrides(overrides),
+    // save the user gas by confirming that the allowances and balance match the request
+    validate(lpAllowance.gte(liquidityTokenQty), {
+      message: 'Not allowed to spend that much ELP',
+      prefix,
+    });
+
+    validate(this.toBigNumber(liquidityTokenQty).lt(lpBalance), {
+      message: "You don't have enough ELP",
+      prefix,
+    });
+
+    const nowish = (Date.now() + 100) / 1000;
+
+    // save the user gas by confirming that the timestamp is not already expired
+    // do this at the last possible moment and add 100 ms for network latency
+    validate(expirationTimestamp > nowish, {
+      message: 'Requested expiration is in the past',
+      prefix,
+    });
+
+    return this._handleTransaction(
+      await this.contract.removeLiquidity(
+        this.toEthersBigNumber(liquidityTokenQty, 18),
+        this.toEthersBigNumber(baseTokenQtyMin, this.baseToken.decimals),
+        this.toEthersBigNumber(quoteTokenQtyMin, this.quoteToken.decimals),
+        tokenRecipient,
+        expirationTimestamp,
+        this.sanitizeOverrides(overrides),
+      ),
     );
-    return txStatus;
-    */
   }
 
   async swapBaseTokenForQuoteToken() {

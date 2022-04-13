@@ -211,10 +211,8 @@ export default class StakingPools extends Base {
 
     // 0xean's comments - totalDeposited is the LP token which is not being rewarded,
     // so we need to turn this into TIC deposited in order to get an accurate APR.
-    const lpToken = this.sdk.contract({ address: poolToken });
-    const ticToken = this.sdk.contract({
-      address: this.sdk.contractAddress('TicToken'),
-    });
+    const lpToken = this.sdk.erc20(poolToken);
+    const ticToken = this.sdk.erc20(this.sdk.contractAddress('TicToken'));
 
     const [lpTokenTotalSupplyBN, lpTokenInStakingBN, lpTicBalanceBN] = await Promise.all([
       lpToken.totalSupply(),
