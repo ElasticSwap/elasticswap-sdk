@@ -16,11 +16,16 @@ export const getBaseQtyFromQuoteQty = (quoteTokenQty, baseTokenReserveQty, fee, 
   // check to see if we have experienced quote token Decay / a rebase down event
   if (baseTokenReserveQty.lt(internalBalances.baseTokenReserveQty)) {
     // we have less reserves than our current price curve will expect, we need to adjust the curve
-    const pricingRatio = internalBalances.baseTokenReserveQty.mul(WAD).div(
+    const pricingRatio = wDiv(
+      internalBalances.baseTokenReserveQty,
       internalBalances.quoteTokenReserveQty,
     );
     //    ^ is Omega
-    const impliedQuoteTokenQty = baseTokenReserveQty.mul(WAD).div(pricingRatio);
+    const impliedQuoteTokenQty = wDiv( 
+      baseTokenReserveQty,
+      pricingRatio
+    );
+
     return calculateQtyToReturnAfterFees(
       quoteTokenQty,
       impliedQuoteTokenQty,
@@ -36,7 +41,6 @@ export const getBaseQtyFromQuoteQty = (quoteTokenQty, baseTokenReserveQty, fee, 
     fee,
   );
 }
-
 
 /**
  * Returns the quote qty expected to output (given no slippage) based on the baseTokenQty
@@ -54,7 +58,6 @@ export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) => {
     fee,
   );
 }
-
 
 /**
  * 
@@ -77,6 +80,12 @@ export const calculateQtyToReturnAfterFees = (
   const qtyToReturn = numerator.div(denominator);
   return qtyToReturn;
 };
+
+export const wDiv = (
+  a, b
+) => {
+  return (a.mul(WAD).add(b.div(2))).div(b);
+}
 
 export default {
   BASIS_POINTS,
