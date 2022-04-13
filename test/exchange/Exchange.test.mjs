@@ -56,7 +56,7 @@ describe('Exchange', () => {
   });
 
   describe('getBaseTokenQtyFromQuoteTokenQty', async () => {
-    it.only('calculates expected output for current state of exchange', async () => {
+    it('calculates expected output for current state of exchange', async () => {
       const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
       // create expiration 50 minutes from now.
       const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
@@ -106,6 +106,61 @@ describe('Exchange', () => {
       );
       expect((await exchange.getBaseTokenQtyFromQuoteTokenQty(1.25)).toString()).to.be.equal(
         '6.218672655258850218',
+      );
+    });
+  });
+
+  describe('getQuoteTokenQtyFromBaseTokenQty', async () => {
+    it('calculates expected output for current state of exchange', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      const liquidityProvider = accounts[1];
+      const liquidityProviderInitialBalances = 1000000;
+      const baseTokenQtyToAdd = 500000;
+      const quoteTokenQtyToAdd = 100000;
+
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
+
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+
+      await sdk.changeSigner(liquidityProvider);
+
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
+
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
+
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expiration,
+      );
+
+      expect((await exchange.getQuoteTokenQtyFromBaseTokenQty(5)).toString()).to.be.equal(
+        '0.994990099848506507',
+      );
+      expect((await exchange.getQuoteTokenQtyFromBaseTokenQty(50)).toString()).to.be.equal(
+        '9.94901007349768698',
+      );
+      expect((await exchange.getQuoteTokenQtyFromBaseTokenQty(1.25)).toString()).to.be.equal(
+        '0.248749381235914175',
       );
     });
   });
