@@ -154,42 +154,26 @@ export default class Exchange extends ERC20 {
    */
   async internalBalances(overrides) {
     let internalBalances;
-    let baseTokenDecimals;
-    let quoteTokenDecimals;
 
     // if there are overrides, fetch directly from the readonly contract
     if (isPOJO(overrides)) {
-      const results = await Promise.all([
-        this.readonlyContract.internalBalances(overrides),
-        this.baseToken.decimals(overrides),
-        this.quoteToken.decimals(overrides),
-      ]);
-
+      const results = await this.readonlyContract.internalBalances(overrides);
       internalBalances = results[0];
-      baseTokenDecimals = results[1];
-      quoteTokenDecimals = results[2];
     }
 
     // fetch the value from the network using multicall
     if (!internalBalances) {
-      const results = await Promise.all([
-        this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
-        this.baseToken.decimals(),
-        this.quoteToken.decimals(),
-      ]);
-
+      const results = await this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances');
       internalBalances = results[0];
-      baseTokenDecimals = results[1];
-      quoteTokenDecimals = results[2];
     }
 
     const baseTokenReserveQty = this.toBigNumber(
       internalBalances.baseTokenReserveQty,
-      baseTokenDecimals,
+      this.baseToken.decimals,
     );
     const quoteTokenReserveQty = this.toBigNumber(
       internalBalances.quoteTokenReserveQty,
-      quoteTokenDecimals,
+      this.quoteToken.decimals,
     );
 
     return { baseTokenReserveQty, quoteTokenReserveQty };
@@ -476,9 +460,8 @@ export default class Exchange extends ERC20 {
   // CALCULATIONS
 
   async calculateBaseTokenQty(quoteTokenQty, baseTokenQtyMin) {
-    const [baseTokenDecimals, baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] =
+    const [baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] =
       await Promise.all([
-        this.baseToken.decimals(),
         this.baseToken.balanceOf(this.address),
         this.TOTAL_LIQUIDITY_FEE(),
         this.internalBalances(),
@@ -486,7 +469,7 @@ export default class Exchange extends ERC20 {
 
     return calculateBaseTokenQty(
       quoteTokenQty,
-      baseTokenQtyMin || this.toBigNumber(1, baseTokenDecimals),
+      baseTokenQtyMin || this.toBigNumber(1, this.baseToken.decimals),
       baseTokenReserveQty,
       liquidityFeeInBasisPoints,
       internalBalances,
@@ -494,15 +477,14 @@ export default class Exchange extends ERC20 {
   }
 
   async calculateQuoteTokenQty(baseTokenQty, quoteTokenQtyMin) {
-    const [quoteTokenDecimals, liquidityFeeInBasisPoints, internalBalances] = await Promise.all([
-      this.quoteToken.decimals(),
+    const [liquidityFeeInBasisPoints, internalBalances] = await Promise.all([
       this.TOTAL_LIQUIDITY_FEE(),
       this.internalBalances(),
     ]);
 
     return calculateQuoteTokenQty(
       baseTokenQty,
-      quoteTokenQtyMin || this.toBigNumber(1, quoteTokenDecimals),
+      quoteTokenQtyMin || this.toBigNumber(1, this.quoteToken.decimals),
       liquidityFeeInBasisPoints,
       internalBalances,
     );
