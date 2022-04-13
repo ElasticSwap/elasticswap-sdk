@@ -471,13 +471,13 @@ export default class Exchange extends ERC20 {
       this.sdk.multicall.enqueue(this.abi, this.address, 'TOTAL_LIQUIDITY_FEE'),
       this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
     ]);
-    const rawOutput = getBaseTokenQtyFromQuoteTokenQty(
+    const rawBaseTokenQty = getBaseTokenQtyFromQuoteTokenQty(
       this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
       baseTokenReserveQty,
       fee,
       internalBalances,
     );
-    return this.toBigNumber(rawOutput, this.baseToken.decimals);
+    return this.toBigNumber(rawBaseTokenQty, this.baseToken.decimals);
   }
 
   // CALCULATIONS
