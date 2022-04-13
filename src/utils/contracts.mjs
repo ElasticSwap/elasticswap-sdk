@@ -52,7 +52,7 @@ export const isAbiComponentInputOrOutput = (obj) => {
 export const isDeployment = (obj) => {
   if (isPOJO(obj)) {
     const keys = Object.keys(obj);
-    const mapping = keys.map(isStringVersionOfNumber)
+    const mapping = keys.map(isStringVersionOfNumber);
     const finded = mapping.find((bool) => bool === false);
     return finded !== false;
   }
@@ -62,13 +62,15 @@ export const isDeployment = (obj) => {
 
 export const isStringVersionOfNumber = (obj) => {
   const result = isString(obj) && parseInt(obj, 10).toString() === obj;
-  return result
-}
+  return result;
+};
 
 export const processContracts = (env) => {
   const contracts = {};
 
-  const rawAbis = env.contracts.filter(isAbi).map(({ abi, contractName }) => ({ abi, contractName }));
+  const rawAbis = env.contracts
+    .filter(isAbi)
+    .map(({ abi, contractName }) => ({ abi, contractName }));
   const rawDeployments = env.contracts.filter(isDeployment);
 
   const rawNetworks = new Set();
@@ -88,15 +90,17 @@ export const processContracts = (env) => {
     contracts[networkIdHex] = {};
 
     for (let j = 0; j < rawAbis.length; j += 1) {
-      contracts[networkIdHex]
-      [rawAbis[j].contractName] = rawAbis[j];
+      contracts[networkIdHex][rawAbis[j].contractName] = rawAbis[j];
     }
 
     for (let j = 0; j < rawDeployments.length; j += 1) {
       if (rawDeployments[j][networkIdString]) {
-        for (let k=0; k < rawDeployments[j][networkIdString].length; k+=1) {
+        for (let k = 0; k < rawDeployments[j][networkIdString].length; k += 1) {
           if (rawDeployments[j][networkIdString][k]?.contracts) {
-            contracts[networkIdHex] = { ...contracts[networkIdHex], ...rawDeployments[j][networkIdString][k].contracts };
+            contracts[networkIdHex] = {
+              ...contracts[networkIdHex],
+              ...rawDeployments[j][networkIdString][k].contracts,
+            };
           }
         }
       }

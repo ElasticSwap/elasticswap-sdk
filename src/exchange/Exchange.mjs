@@ -281,17 +281,13 @@ export default class Exchange extends ERC20 {
 
     this.sdk.trackAddress(liquidityTokenRecipient);
 
-    const [
-      baseTokenBalance,
-      quoteTokenBalance,
-      baseTokenAllowance,
-      quoteTokenAllowance,
-    ] = await Promise.all([
-      this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
-      this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
-      this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
-      this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
-    ]);
+    const [baseTokenBalance, quoteTokenBalance, baseTokenAllowance, quoteTokenAllowance] =
+      await Promise.all([
+        this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
+        this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
+        this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
+        this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
+      ]);
 
     // save the user gas by confirming that the minimum values are not greater than the maximum ones
     validate(this.toBigNumber(baseTokenQtyMin).lte(baseTokenQtyDesired), {
