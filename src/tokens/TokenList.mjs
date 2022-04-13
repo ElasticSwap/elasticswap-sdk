@@ -1,5 +1,6 @@
 import Cachable from '../Cachable.mjs';
 import Token from './Token.mjs';
+import { isEqual } from '../utils/equality.mjs';
 import { toBigNumber } from '../utils/utils.mjs';
 import { validateIsAddress } from '../utils/validations.mjs';
 
@@ -157,7 +158,7 @@ export default class TokenList extends Cachable {
   // loads data from the cache if it exists and then fetches the most up to date version
   _load(resolve) {
     // the data came in directly, so we don't ever want to fetch it
-    if (this._data) {
+    if (!isEqual(this._data, {})) {
       this._processData();
       this._doNotUpdate = true;
       resolve();
@@ -203,6 +204,7 @@ export default class TokenList extends Cachable {
   // gets a fresh version of the tokenlist and triggers a data update if the version has changed
   _update(resolve) {
     if (this._doNotUpdate) {
+      resolve();
       return Promise.resolve();
     }
 
