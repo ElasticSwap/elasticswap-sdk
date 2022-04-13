@@ -23,9 +23,17 @@ jobs:
           yarn prettier
           yarn lint
 
-      - name: Run Test
-        run: yarn test
+      - name: Run Test with Coverage
+        run: yarn coverage
+
+      - name: Code Coverage
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          flags: unittests # optional
+          name: codecov-umbrella # optional
+          fail_ci_if_error: true # optional (default = false)
+          verbose: true # optional (default = false)
 
       - name: Run Build
         run: yarn build
-        

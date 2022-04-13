@@ -1,0 +1,11 @@
+{
+  "extension": ".mjs",
+  "include": [
+    "src/**/*.mjs"
+  ],
+  "reporter": [
+    "text",
+    "lcov",
+    "clover"
+  ]
+}

@@ -14,6 +14,7 @@
   "scripts": {
     "analyzer": "yarn stats && yarn webpack-bundle-analyzer stats.json",
     "build": "npx webpack -c ./webpack.config.production.js",
+    "coverage": "c8 yarn test",
     "dev": "yarn prettier:js && yarn lint:js && npx webpack -c ./webpack.config.js --watch",
     "docs": "npx jsdoc2md -c .jsdoc.json src/index.mjs > dist/readme.md",
     "lint": "yarn run prettier && yarn run lint:js && yarn run lint:test",
@@ -40,6 +41,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "babel-loader": "^8.2.3",
     "babel-polyfill": "^6.26.0",
+    "c8": "^7.11.0",
     "chai": "^4.3.4",
     "eslint": "^8.12.0",
     "eslint-config-airbnb-base": "^14.2.1",
