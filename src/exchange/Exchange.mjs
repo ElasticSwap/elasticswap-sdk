@@ -460,12 +460,11 @@ export default class Exchange extends ERC20 {
   // CALCULATIONS
 
   async calculateBaseTokenQty(quoteTokenQty, baseTokenQtyMin) {
-    const [baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] =
-      await Promise.all([
-        this.baseToken.balanceOf(this.address),
-        this.TOTAL_LIQUIDITY_FEE(),
-        this.internalBalances(),
-      ]);
+    const [baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] = await Promise.all([
+      this.baseToken.balanceOf(this.address),
+      this.TOTAL_LIQUIDITY_FEE(),
+      this.internalBalances(),
+    ]);
 
     return calculateBaseTokenQty(
       quoteTokenQty,
