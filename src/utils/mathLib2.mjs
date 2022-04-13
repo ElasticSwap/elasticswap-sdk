@@ -10,7 +10,7 @@ export const WAD = ethers.utils.parseUnits('1', 18);
  * @param {ethers.BigNumber} baseTokenReserveQty current baseToken.balanceOf(exchange)
  * @param {ethers.BigNumber} fee fee amount in basis points
  * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty}
- * @returns 
+ * @returns baseToken qty
  */
 export const getBaseQtyFromQuoteQty = (quoteTokenQty, baseTokenReserveQty, fee, internalBalances) => {
   // check to see if we have experienced quote token Decay / a rebase down event
@@ -48,7 +48,7 @@ export const getBaseQtyFromQuoteQty = (quoteTokenQty, baseTokenReserveQty, fee, 
  * @param {ethers.BigNumber} baseTokenQty 
  * @param {ethers.BigNumber} fee 
  * @param {ethers.BigNumber} internalBalances 
- * @returns 
+ * @returns quoteToken qty
  */
 export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) => {
   return calculateQtyToReturnAfterFees(
@@ -65,7 +65,7 @@ export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) => {
  * @param {ethers.BigNumber} tokenAReserveQty 
  * @param {ethers.BigNumber} tokenBReserveQty 
  * @param {ethers.BigNumber} fee in basis points
- * @returns 
+ * @returns token qty
  */
 export const calculateQtyToReturnAfterFees = (
   tokenASwapQty,
@@ -81,7 +81,15 @@ export const calculateQtyToReturnAfterFees = (
   return qtyToReturn;
 };
 
-export const wDiv = (
+/**
+ * returns a / b in the form of a WAD integer (18 decimals of precision)
+ * NOTE: this rounds to the nearest integer (up or down). For example .666666 would end up
+ * rounding to .66667.
+ * @param {ethers.BigNumber} a 
+ * @param {ethers.BigNumber} b 
+ * @returns wad value of a/b
+ */
+const wDiv = (
   a, b
 ) => {
   return (a.mul(WAD).add(b.div(2))).div(b);
