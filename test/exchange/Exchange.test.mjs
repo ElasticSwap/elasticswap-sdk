@@ -55,6 +55,61 @@ describe('Exchange', () => {
     });
   });
 
+  describe('getBaseTokenQtyFromQuoteTokenQty', async () => {
+    it.only('calculates expected output for current state of exchange', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      const liquidityProvider = accounts[1];
+      const liquidityProviderInitialBalances = 1000000;
+      const baseTokenQtyToAdd = 500000;
+      const quoteTokenQtyToAdd = 100000;
+
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
+
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+
+      await sdk.changeSigner(liquidityProvider);
+
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
+
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
+
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expiration,
+      );
+
+      expect((await exchange.getBaseTokenQtyFromQuoteTokenQty(5)).toString()).to.be.equal(
+        '24.873762530314116872',
+      );
+      expect((await exchange.getBaseTokenQtyFromQuoteTokenQty(50)).toString()).to.be.equal(
+        '248.626308411565246289',
+      );
+      expect((await exchange.getBaseTokenQtyFromQuoteTokenQty(1.25)).toString()).to.be.equal(
+        '6.218672655258850218',
+      );
+    });
+  });
+
   // TODO: Reenable this when the functionality is reintroduced
   /*
   describe.skip('swapBaseTokenForQuoteToken', () => {

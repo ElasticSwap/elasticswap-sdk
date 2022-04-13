@@ -9,11 +9,11 @@ export const WAD = ethers.utils.parseUnits('1', 18);
  * @param {ethers.BigNumber} quoteTokenQty quoteTokenQty to swap
  * @param {ethers.BigNumber} baseTokenReserveQty current baseToken.balanceOf(exchange)
  * @param {ethers.BigNumber} fee fee amount in basis points
- * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty } 
+ * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
  * representing internal accounting of the exchange contract
  * @returns baseToken qty
  */
-export const getBaseQtyFromQuoteQty = (
+export const getBaseTokenQtyFromQuoteTokenQty = (
   quoteTokenQty,
   baseTokenReserveQty,
   fee,
@@ -50,11 +50,11 @@ export const getBaseQtyFromQuoteQty = (
  * passed in for the given internal balances and fee.
  * @param {ethers.BigNumber} baseTokenQty
  * @param {ethers.BigNumber} fee fee amount in basis points
- * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty } 
+ * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
  * representing internal accounting of the exchange contract
  * @returns quoteToken qty
  */
-export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) =>
+export const getQuoteTokenQtyFromBaseTokenQty = (baseTokenQty, fee, internalBalances) =>
   calculateQtyToReturnAfterFees(
     baseTokenQty,
     internalBalances.baseTokenReserveQty,
@@ -97,6 +97,6 @@ const wDiv = (a, b) => a.mul(WAD).add(b.div(2)).div(b);
 export default {
   BASIS_POINTS,
   calculateQtyToReturnAfterFees,
-  getBaseQtyFromQuoteQty,
-  getQuoteQtyFromBaseQty,
+  getBaseTokenQtyFromQuoteTokenQty,
+  getQuoteTokenQtyFromBaseTokenQty,
 };

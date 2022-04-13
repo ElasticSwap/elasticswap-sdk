@@ -17,6 +17,7 @@ import {
 } from '../utils/mathLib.mjs';
 
 import { validate, validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
+import { getBaseTokenQtyFromQuoteTokenQty } from '../utils/mathLib2.mjs';
 
 const prefix = 'Exchange';
 
@@ -455,6 +456,28 @@ export default class Exchange extends ERC20 {
     );
     return txStatus;
     */
+  }
+
+  /**
+   * gets the expected output amount of base tokens given the input
+   * @param {string | BigNumber | Number } quoteTokenQty in native, decimal format of the quoteToken
+   * @returns BigNumber decimal representation of expected output amount
+   */
+  async getBaseTokenQtyFromQuoteTokenQty(quoteTokenQty) {
+    const [baseTokenReserveQty, fee, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'TOTAL_LIQUIDITY_FEE'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+    const rawOutput = getBaseTokenQtyFromQuoteTokenQty(
+      this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
+      baseTokenReserveQty,
+      fee,
+      internalBalances,
+    );
+    return this.toBigNumber(rawOutput, this.baseToken.decimals);
   }
 
   // CALCULATIONS

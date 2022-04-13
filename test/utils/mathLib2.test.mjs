@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import {
   BASIS_POINTS,
   calculateQtyToReturnAfterFees,
-  getBaseQtyFromQuoteQty,
+  getBaseTokenQtyFromQuoteTokenQty,
 } from '../../src/utils/mathLib2.mjs';
 
 describe('MathLib2', async () => {
@@ -77,16 +77,21 @@ describe('MathLib2', async () => {
     });
   });
 
-  describe('getBaseQtyFromQuoteQty', () => {
+  describe('getBaseTokenQtyFromQuoteTokenQty', () => {
     it('works with 2 - 18 decimal tokens without decay', () => {
       const quoteTokenQtyToSwap = ethers.utils.parseUnits('100', 18);
       const quoteTokenReserveQty = ethers.utils.parseUnits('150000000', 18);
       const baseTokenReserveQty = ethers.utils.parseUnits('75000000', 18);
       const fee = ethers.BigNumber.from(50); // basis points;
-      const output = getBaseQtyFromQuoteQty(quoteTokenQtyToSwap, baseTokenReserveQty, fee, {
-        quoteTokenReserveQty,
+      const output = getBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQtyToSwap,
         baseTokenReserveQty,
-      });
+        fee,
+        {
+          quoteTokenReserveQty,
+          baseTokenReserveQty,
+        },
+      );
       expect(output.toString()).to.equal('49749966999188557204');
     });
 
@@ -96,10 +101,15 @@ describe('MathLib2', async () => {
       const baseTokenReserveQty = ethers.utils.parseUnits('75000000', 18);
       const decayAmount = ethers.utils.parseUnits('50000', 18);
       const fee = ethers.BigNumber.from(50); // basis points;
-      const output = getBaseQtyFromQuoteQty(quoteTokenQtyToSwap, baseTokenReserveQty, fee, {
-        quoteTokenReserveQty,
-        baseTokenReserveQty: baseTokenReserveQty.add(decayAmount),
-      });
+      const output = getBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQtyToSwap,
+        baseTokenReserveQty,
+        fee,
+        {
+          quoteTokenReserveQty,
+          baseTokenReserveQty: baseTokenReserveQty.add(decayAmount),
+        },
+      );
       expect(output.toString()).to.equal('49783133621839489500');
     });
   });
