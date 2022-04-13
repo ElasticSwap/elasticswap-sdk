@@ -4,10 +4,11 @@ export const BASIS_POINTS = ethers.BigNumber.from('10000');
 export const WAD = ethers.utils.parseUnits('1', 18);
 
 /**
- * 
- * @param {ethers.BigNumber} quoteTokenQty 
- * @param {ethers.BigNumber} baseTokenReserveQty 
- * @param {ethers.BigNumber} fee 
+ * get the base qty expected to output (assuming no slippage) based on the quoteTokenQty
+ * passed in.
+ * @param {ethers.BigNumber} quoteTokenQty quoteTokenQty to swap
+ * @param {ethers.BigNumber} baseTokenReserveQty current baseToken.balanceOf(exchange)
+ * @param {ethers.BigNumber} fee fee amount in basis points
  * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty}
  * @returns 
  */
