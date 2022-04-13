@@ -49,8 +49,9 @@ export const getBaseQtyFromQuoteQty = (
  * Returns the quote qty expected to output (given no slippage) based on the baseTokenQty
  * passed in for the given internal balances and fee.
  * @param {ethers.BigNumber} baseTokenQty
- * @param {ethers.BigNumber} fee
- * @param {ethers.BigNumber} internalBalances
+ * @param {ethers.BigNumber} fee fee amount in basis points
+ * @param {object} internalBalances { baseTokenReserveQty, quoteTokenReserveQty } 
+ * representing internal accounting of the exchange contract
  * @returns quoteToken qty
  */
 export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) =>
@@ -66,7 +67,7 @@ export const getQuoteQtyFromBaseQty = (baseTokenQty, fee, internalBalances) =>
  * @param {ethers.BigNumber} tokenASwapQty
  * @param {ethers.BigNumber} tokenAReserveQty
  * @param {ethers.BigNumber} tokenBReserveQty
- * @param {ethers.BigNumber} fee in basis points
+ * @param {ethers.BigNumber} fee fee amount in basis points
  * @returns token qty
  */
 export const calculateQtyToReturnAfterFees = (
