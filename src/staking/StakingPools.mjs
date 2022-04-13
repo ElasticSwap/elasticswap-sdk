@@ -214,15 +214,11 @@ export default class StakingPools extends Base {
     const lpToken = this.sdk.erc20(poolToken);
     const ticToken = this.sdk.erc20(this.sdk.contractAddress('TicToken'));
 
-    const [lpTokenTotalSupplyBN, lpTokenInStakingBN, lpTicBalanceBN] = await Promise.all([
+    const [lpTokenTotalSupply, lpTokenInStaking, lpTicBalance] = await Promise.all([
       lpToken.totalSupply(),
       lpToken.balanceOf(this._address),
       ticToken.balanceOf(poolToken),
     ]);
-
-    const lpTokenTotalSupply = this.toBigNumber(lpTokenTotalSupplyBN, 18);
-    const lpTokenInStaking = this.toBigNumber(lpTokenInStakingBN, 18);
-    const lpTicBalance = this.toBigNumber(lpTicBalanceBN, 18);
 
     const percentOfLPStaked = lpTokenInStaking.div(lpTokenTotalSupply);
     const ticStaked = lpTicBalance.multipliedBy(percentOfLPStaked);
