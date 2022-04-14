@@ -818,8 +818,12 @@ describe('Exchange', () => {
       );
 
       // confirm the exchange has 0 balance for base and quote token
-      expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
-      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
+      expect(
+        (await baseToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
+      expect(
+        (await quoteToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
     });
 
     it('Should baseToken balance be less than baseToken to be swapped', async () => {
@@ -865,8 +869,12 @@ describe('Exchange', () => {
       await expectThrowsAsync(testMethod, "Exchange: You don't have enough ETM");
 
       // confirm the exchange has 0 balance for base and quote token
-      expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
-      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
+      expect(
+        (await baseToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
+      expect(
+        (await quoteToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
     });
 
     it('Should quoteToken balance be less than quoteToken to be swapped', async () => {
@@ -912,8 +920,12 @@ describe('Exchange', () => {
       await expectThrowsAsync(testMethod, "Exchange: You don't have enough FUSD");
 
       // confirm the exchange has 0 balance for base and quote token
-      expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
-      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
+      expect(
+        (await baseToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
+      expect(
+        (await quoteToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
     });
 
     it('Should timestamp be expired', async () => {
@@ -958,8 +970,12 @@ describe('Exchange', () => {
       await expectThrowsAsync(testMethod, 'Exchange: Requested expiration is in the past');
 
       // confirm the exchange has 0 balance for base and quote token
-      expect((await baseToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
-      expect((await quoteToken.balanceOf(exchange.address)).toNumber()).to.equal(0);
+      expect(
+        (await baseToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
+      expect(
+        (await quoteToken.balanceOf(exchange.address, { multicall: true })).toNumber(),
+      ).to.equal(0);
     });
 
     it('Should ADD quote and base token liquidity', async () => {
