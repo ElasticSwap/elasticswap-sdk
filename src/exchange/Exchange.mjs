@@ -400,12 +400,12 @@ export default class Exchange extends ERC20 {
 
     // save the user gas by confirming that the allowances and balance match the request
     validate(baseTokenAllowance.gte(baseTokenQty), {
-      message: `Not allowed to spend that much base token ${this.baseToken.symbol}`,
+      message: `Not allowed to spend that much ${this.baseToken.symbol} token`,
       prefix,
     });
 
     validate(this.toBigNumber(baseTokenQty).lt(baseTokenBalance), {
-      message: `You don't have enough base token ${this.baseToken.symbol}`,
+      message: `You don't have enough ${this.baseToken.symbol} token`,
       prefix,
     });
 
@@ -442,12 +442,12 @@ export default class Exchange extends ERC20 {
 
     // save the user gas by confirming that the allowances and balance match the request
     validate(quoteTokenAllowance.gte(quoteTokenQty), {
-      message: `Not allowed to spend that much quote token ${this.quoteToken.symbol}`,
+      message: `Not allowed to spend that much ${this.quoteToken.symbol} token`,
       prefix,
     });
 
     validate(this.toBigNumber(quoteTokenQty).lt(quoteTokenBalance), {
-      message: `You don't have enough quote token ${this.quoteToken.symbol}`,
+      message: `You don't have enough ${this.quoteToken.symbol} token`,
       prefix,
     });
 
