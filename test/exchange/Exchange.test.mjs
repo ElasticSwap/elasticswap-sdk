@@ -36,7 +36,7 @@ describe('Exchange', () => {
 
   afterEach(async () => {
     const { sdk } = coreObjects;
-    // rollback to the state before the test to prevent polution
+    // rollback to the state before the test to prevent pollution
     await sdk.provider.send('evm_revert', [snapshotId]);
   });
 

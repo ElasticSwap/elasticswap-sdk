@@ -4,18 +4,6 @@
 import ERC20 from '../tokens/ERC20.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
 import { toBigNumber } from '../utils/utils.mjs';
-
-import {
-  calculateBaseTokenQty,
-  // calculateExchangeRate,
-  // calculateInputAmountFromOutputAmount,
-  // calculateFees,
-  // calculateLPTokenAmount,
-  calculateQuoteTokenQty,
-  // calculateTokenAmountsFromLPTokens,
-  // calculateOutputAmountLessFees,
-} from '../utils/mathLib.mjs';
-
 import { validate, validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
 import {
   getBaseTokenQtyFromQuoteTokenQty,
@@ -395,37 +383,46 @@ export default class Exchange extends ERC20 {
     );
   }
 
-  async swapBaseTokenForQuoteToken() {
-    // baseTokenQty,
-    // quoteTokenQtyMin,
-    // expirationTimestamp,
-    // overrides = {},
-    /*
-    const baseTokenQtyBN = toBigNumber(baseTokenQty);
-    const quoteTokenQtyMinBN = toBigNumber(quoteTokenQtyMin);
-    const baseTokenBalanceBN = toBigNumber(await this.baseTokenBalance);
-    const baseTokenAllowanceBN = toBigNumber(await this.baseTokenAllowance);
+  async swapBaseTokenForQuoteToken(
+    baseTokenQty,
+    quoteTokenQtyMin,
+    expirationTimestamp,
+    overrides = {},
+  ) {
+    validateIsBigNumber(this.toBigNumber(baseTokenQty), { prefix });
+    validateIsBigNumber(this.toBigNumber(quoteTokenQtyMin), { prefix });
 
-    if (expirationTimestamp < new Date().getTime() / 1000) {
-      throw this.errorHandling.error('TIMESTAMP_EXPIRED');
-    }
-    if (baseTokenBalanceBN.lt(baseTokenQtyBN)) {
-      throw this.errorHandling.error('NOT_ENOUGH_BASE_TOKEN_BALANCE');
-    }
-    if (baseTokenAllowanceBN.lt(baseTokenQtyBN)) {
-      throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
-    }
+    // check balances and approval of base token
+    const [baseTokenBalance, baseTokenAllowance] = await Promise.all([
+      this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
+    ]);
 
-    const baseTokenQtyEBN = toEthersBigNumber(baseTokenQtyBN);
-    const quoteTokenQtyMinEBN = toEthersBigNumber(quoteTokenQtyMinBN);
-    const txStatus = await this.contract.swapBaseTokenForQuoteToken(
-      baseTokenQtyEBN,
-      quoteTokenQtyMinEBN,
-      expirationTimestamp,
-      this.sanitizeOverrides(overrides),
+    // save the user gas by confirming that the allowances and balance match the request
+    validate(baseTokenAllowance.gte(baseTokenQty), {
+      message: `Not allowed to spend that much base token ${this.baseToken.symbol}`,
+      prefix,
+    });
+
+    validate(this.toBigNumber(baseTokenQty).lt(baseTokenBalance), {
+      message: `You don't have enough base token ${this.baseToken.symbol}`,
+      prefix,
+    });
+
+    const nowish = (Date.now() + 100) / 1000;
+    validate(expirationTimestamp > nowish, {
+      message: 'Requested expiration is in the past',
+      prefix,
+    });
+
+    return this._handleTransaction(
+      await this.contract.swapBaseTokenForQuoteToken(
+        this.toEthersBigNumber(baseTokenQty, this.baseToken.decimals),
+        this.toEthersBigNumber(quoteTokenQtyMin, this.quoteToken.decimals),
+        expirationTimestamp,
+        this.sanitizeOverrides(overrides),
+      ),
     );
-    return txStatus;
-    */
   }
 
   async swapQuoteTokenForBaseToken() {
@@ -501,36 +498,6 @@ export default class Exchange extends ERC20 {
       internalBalances,
     );
     return this.toBigNumber(rawQuoteTokenQty, this.quoteToken.decimals);
-  }
-
-  async calculateBaseTokenQty(quoteTokenQty, baseTokenQtyMin) {
-    const [baseTokenReserveQty, liquidityFeeInBasisPoints, internalBalances] = await Promise.all([
-      this.baseToken.balanceOf(this.address),
-      this.TOTAL_LIQUIDITY_FEE(),
-      this.internalBalances(),
-    ]);
-
-    return calculateBaseTokenQty(
-      quoteTokenQty,
-      baseTokenQtyMin || this.toBigNumber(1, this.baseToken.decimals),
-      baseTokenReserveQty,
-      liquidityFeeInBasisPoints,
-      internalBalances,
-    );
-  }
-
-  async calculateQuoteTokenQty(baseTokenQty, quoteTokenQtyMin) {
-    const [liquidityFeeInBasisPoints, internalBalances] = await Promise.all([
-      this.TOTAL_LIQUIDITY_FEE(),
-      this.internalBalances(),
-    ]);
-
-    return calculateQuoteTokenQty(
-      baseTokenQty,
-      quoteTokenQtyMin || this.toBigNumber(1, this.quoteToken.decimals),
-      liquidityFeeInBasisPoints,
-      internalBalances,
-    );
   }
 
   // wraps the transaction in a notification popup and resolves when it has been mined
