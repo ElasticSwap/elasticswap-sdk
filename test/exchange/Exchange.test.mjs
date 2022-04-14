@@ -692,8 +692,12 @@ describe('Exchange', () => {
       await sdk.changeSigner(trader);
       await exchangeInstance.quoteToken.approve(exchangeInstance.address, amountToAdd);
       // confirm no balance before trade.
-      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
-      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
+      expect((await baseToken.balanceOf(trader.address, { multicall: true })).toNumber()).to.equal(
+        0,
+      );
+      expect((await quoteToken.balanceOf(trader.address, { multicall: true })).toNumber()).to.equal(
+        amountToAdd,
+      );
 
       // trader executes the first trade, our pricing should be ~1:1 currently minus fees
       const swapAmount = 100000;
