@@ -108,7 +108,7 @@ export default class StakingPool extends Base {
       return 'TIC';
     }
 
-    if (this.token.address === this.sdk.contractAddress('TimeTokenPreseed')) {
+    if (this.token.address === this.sdk.contractAddress('TimeTokenPreSeed')) {
       return 'Pre-seed';
     }
 
@@ -174,6 +174,16 @@ export default class StakingPool extends Base {
   }
 
   /**
+   * The current token balance of the pool
+   *
+   * @readonly
+   * @memberof StakingPool
+   */
+  get totalDeposited() {
+    return this._totalDeposited;
+  }
+
+  /**
    * The total value locked in the pool
    *
    * @readonly
@@ -231,6 +241,7 @@ export default class StakingPool extends Base {
       this._token = undefined;
       this._tokenAllowance = this.toBigNumber(0);
       this._tokenBalance = this.toBigNumber(0);
+      this._totalDeposited = this.toBigNumber(0);
       this._tvl = this.toBigNumber(0);
       this._unclaimed = this.toBigNumber(0);
       this._valuePerToken = this.toBigNumber(0);
@@ -239,6 +250,7 @@ export default class StakingPool extends Base {
       return true;
     }
 
+    const preSeedAddress = this.sdk.contractAddress('TimeTokenPreSeed');
     const slp = new SLP(this.sdk, TIC_USDC_SLP_ADDRESS);
     const ticAddress = this.sdk.contractAddress('TicToken');
     const ticToken = this.sdk.erc20(ticAddress);
@@ -246,6 +258,7 @@ export default class StakingPool extends Base {
     this._account = this.sdk.account || ethers.constants.AddressZero;
 
     const [
+      poolTotalDeposited,
       poolRewardRate,
       poolTokenAddress,
       apr,
@@ -255,6 +268,7 @@ export default class StakingPool extends Base {
       slpTotalSupply,
       slpTicSupply,
     ] = await Promise.all([
+      this.sdk.stakingPools.getPoolTotalDeposited(this.id),
       this.sdk.stakingPools.getPoolRewardRate(this.id),
       this.sdk.stakingPools.getPoolToken(this.id),
       this.sdk.stakingPools.getAPR(this.id),
@@ -269,6 +283,7 @@ export default class StakingPool extends Base {
     this._rewardRate = poolRewardRate;
     this._staked = staked;
     this._token = this.sdk.erc20(poolTokenAddress);
+    this._totalDeposited = poolTotalDeposited;
     this._unclaimed = unclaimed;
     this._valuePerToken = this.toBigNumber(0);
 
@@ -294,6 +309,11 @@ export default class StakingPool extends Base {
     this._tokenAllowance = tokenAllowance;
     this._tokenBalance = tokenBalance;
     this._tvl = tvl;
+
+    if (this.token.address === preSeedAddress) {
+      this._valuePerToken = this.toBigNumber(1); // 1 Pre-seed = 1 ETH
+      this._tvl = poolTotalDeposited; // TVL = the amount of pre-seed / ETH value staked
+    }
 
     // visibility check
     this._visible = !this.tokenBalance.plus(this.staked).isZero();
