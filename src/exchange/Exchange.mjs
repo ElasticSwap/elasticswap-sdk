@@ -415,7 +415,7 @@ export default class Exchange extends ERC20 {
       prefix,
     });
 
-    return this._handleTransaction(
+    const receipt = await this._handleTransaction(
       await this.contract.swapBaseTokenForQuoteToken(
         this.toEthersBigNumber(baseTokenQty, this.baseToken.decimals),
         this.toEthersBigNumber(quoteTokenQtyMin, this.quoteToken.decimals),
@@ -423,6 +423,14 @@ export default class Exchange extends ERC20 {
         this.sanitizeOverrides(overrides),
       ),
     );
+
+    // update balances
+    await Promise.all([
+      this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
+    ]);
+
+    return receipt;
   }
 
   async swapQuoteTokenForBaseToken(
@@ -457,7 +465,7 @@ export default class Exchange extends ERC20 {
       prefix,
     });
 
-    return this._handleTransaction(
+    const receipt = await this._handleTransaction(
       await this.contract.swapQuoteTokenForBaseToken(
         this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
         this.toEthersBigNumber(baseTokenQtyMin, this.baseToken.decimals),
@@ -465,6 +473,14 @@ export default class Exchange extends ERC20 {
         this.sanitizeOverrides(overrides),
       ),
     );
+
+    // update balances
+    await Promise.all([
+      this.baseToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
+    ]);
+
+    return receipt;
   }
 
   // CALCULATIONS
