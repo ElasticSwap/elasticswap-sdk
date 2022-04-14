@@ -346,18 +346,10 @@ export default class Exchange extends ERC20 {
 
     this.sdk.trackAddress(tokenRecipient);
 
-    const [lpBalance, lpAllowance] = await Promise.all([
-      this.balanceOf(this.sdk.account, { multicall: true }),
-      this.allowance(this.sdk.account, this.address, { multicall: true }),
-    ]);
+    const lpBalance = await this.balanceOf(this.sdk.account, { multicall: true });
 
-    // save the user gas by confirming that the allowances and balance match the request
-    validate(lpAllowance.gte(liquidityTokenQty), {
-      message: 'Not allowed to spend that much ELP',
-      prefix,
-    });
-
-    validate(this.toBigNumber(liquidityTokenQty).lt(lpBalance), {
+    // save the user gas by confirming that the balance matches the request
+    validate(this.toBigNumber(liquidityTokenQty).lte(lpBalance), {
       message: "You don't have enough ELP",
       prefix,
     });
