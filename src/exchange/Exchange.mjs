@@ -425,37 +425,46 @@ export default class Exchange extends ERC20 {
     );
   }
 
-  async swapQuoteTokenForBaseToken() {
-    // quoteTokenQty,
-    // baseTokenQtyMin,
-    // expirationTimestamp,
-    // overrides = {},
-    /*
-    const quoteTokenQtyBN = toBigNumber(quoteTokenQty);
-    const baseTokenQtyMinBN = toBigNumber(baseTokenQtyMin);
-    const quoteTokenBalanceBN = toBigNumber(await this.quoteTokenBalance);
-    const quoteTokenAllowanceBN = toBigNumber(await this.quoteTokenAllowance);
+  async swapQuoteTokenForBaseToken(
+    quoteTokenQty,
+    baseTokenQtyMin,
+    expirationTimestamp,
+    overrides = {},
+  ) {
+    validateIsBigNumber(this.toBigNumber(quoteTokenQty), { prefix });
+    validateIsBigNumber(this.toBigNumber(baseTokenQtyMin), { prefix });
 
-    if (expirationTimestamp < new Date().getTime() / 1000) {
-      throw this.errorHandling.error('TIMESTAMP_EXPIRED');
-    }
-    if (quoteTokenBalanceBN.lt(quoteTokenQtyBN)) {
-      throw this.errorHandling.error('NOT_ENOUGH_QUOTE_TOKEN_BALANCE');
-    }
-    if (quoteTokenAllowanceBN.lt(quoteTokenQtyBN)) {
-      throw this.errorHandling.error('TRANSFER_NOT_APPROVED');
-    }
+    // check balances and approval of base token
+    const [quoteTokenBalance, quoteTokenAllowance] = await Promise.all([
+      this.quoteToken.balanceOf(this.sdk.account, { multicall: true }),
+      this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
+    ]);
 
-    const quoteTokenQtyEBN = toEthersBigNumber(quoteTokenQtyBN);
-    const baseTokenQtyMinEBN = toEthersBigNumber(baseTokenQtyMinBN);
-    const txStatus = await this.contract.swapQuoteTokenForBaseToken(
-      quoteTokenQtyEBN,
-      baseTokenQtyMinEBN,
-      expirationTimestamp,
-      this.sanitizeOverrides(overrides),
+    // save the user gas by confirming that the allowances and balance match the request
+    validate(quoteTokenAllowance.gte(quoteTokenQty), {
+      message: `Not allowed to spend that much quote token ${this.quoteToken.symbol}`,
+      prefix,
+    });
+
+    validate(this.toBigNumber(quoteTokenQty).lt(quoteTokenBalance), {
+      message: `You don't have enough quote token ${this.quoteToken.symbol}`,
+      prefix,
+    });
+
+    const nowish = (Date.now() + 100) / 1000;
+    validate(expirationTimestamp > nowish, {
+      message: 'Requested expiration is in the past',
+      prefix,
+    });
+
+    return this._handleTransaction(
+      await this.contract.swapQuoteTokenForBaseToken(
+        this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
+        this.toEthersBigNumber(baseTokenQtyMin, this.baseToken.decimals),
+        expirationTimestamp,
+        this.sanitizeOverrides(overrides),
+      ),
     );
-    return txStatus;
-    */
   }
 
   // CALCULATIONS
