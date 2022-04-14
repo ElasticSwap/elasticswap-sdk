@@ -108,7 +108,7 @@ export default class StakingPool extends Base {
       return 'TIC';
     }
 
-    if (this.token.address === this.sdk.contractAddress('TimeTokenPreseed')) {
+    if (this.token.address === this.sdk.contractAddress('TimeTokenPreSeed')) {
       return 'Pre-seed';
     }
 
