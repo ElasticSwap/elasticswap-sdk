@@ -206,13 +206,6 @@ describe('Exchange', () => {
         expiration,
       );
 
-      const exchangeClass = new elasticSwapSDK.Exchange(
-        sdk,
-        exchange.address,
-        baseToken.address,
-        quoteToken.address,
-      );
-
       // send trader base tokens
       const trader = accounts[4];
       const amountToAdd = 50000;
@@ -221,14 +214,14 @@ describe('Exchange', () => {
       // add approvals for exchange to trade their quote tokens
       await sdk.changeSigner(trader);
       const swapAmount = 10000000;
-      await exchangeClass.baseToken.approve(exchangeClass.address, swapAmount);
+      await exchangeInstance.baseToken.approve(exchangeInstance.address, swapAmount);
       // confirm no balance before trade.
       expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(0);
       expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
       // swap tokens
-      const testMethod = exchangeClass.swapBaseTokenForQuoteToken.bind(
-        exchangeClass,
+      const testMethod = exchangeInstance.swapBaseTokenForQuoteToken.bind(
+        exchangeInstance,
         swapAmount,
         1,
         expiration,
@@ -455,322 +448,282 @@ describe('Exchange', () => {
     });
   });
 
-  // // TODO: Reenable this when the functionality is reintroduced
-  // describe.skip('swapQuoteTokenForBaseToken', () => {
-  //   it('Should quoteToken wallet balance be less than quoteToken to be swapped', async () => {
-  //     // create expiration 50 minutes from now.
-  //     const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
-  //     const liquidityProvider = accounts[1];
-  //     const trader = accounts[2];
-  //     const liquidityProviderInitialBalances = 1000000;
-  //     const amountToAdd = 1000000;
-  //     const baseTokenQtyToAdd = 10000;
-  //     const quoteTokenQtyToAdd = 50000;
+  describe('swapQuoteTokenForBaseToken', () => {
+    it('Fails when user balance is less than swap amount', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      const liquidityProvider = accounts[1];
+      const trader = accounts[2];
+      const liquidityProviderInitialBalances = 1000000;
+      const amountToAdd = 50000;
+      const baseTokenQtyToAdd = 100000;
+      const quoteTokenQtyToAdd = 500000;
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
 
-  //     await sdk.changeSigner(liquidityProvider);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await sdk.changeSigner(liquidityProvider);
 
-  //     // send users (liquidity provider) base and quote tokens for easy accounting.
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expiration,
+      );
 
-  //     // add approvals
+      // send trader quote tokens
+      await quoteToken.transfer(trader.address, amountToAdd);
 
-  //     await exchangeClass.quoteToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+      // add approvals for exchange to trade their quote tokens
+      await sdk.changeSigner(trader);
+      const swapAmount = 10000000;
+      await exchangeInstance.quoteToken.approve(exchangeInstance.address, swapAmount);
+      // confirm no balance before trade.
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
-  //     await exchangeClass.baseToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+      // swap tokens
+      const testMethod = exchangeInstance.swapQuoteTokenForBaseToken.bind(
+        exchangeInstance,
+        swapAmount,
+        1,
+        expiration,
+      );
 
-  //     await exchangeClass.addLiquidity(
-  //       baseTokenQtyToAdd,
-  //       quoteTokenQtyToAdd,
-  //       1,
-  //       1,
-  //       liquidityProvider.address,
-  //       expiration,
-  //     );
+      await expectThrowsAsync(testMethod, "Exchange: You don't have enough FUSD token");
+    });
 
-  //     await sdk.changeSigner(trader);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+    it('Fails when user approval is not sufficient', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      const liquidityProvider = accounts[1];
+      const trader = accounts[2];
+      const liquidityProviderInitialBalances = 1000000;
+      const amountToAdd = 50000;
+      const baseTokenQtyToAdd = 100000;
+      const quoteTokenQtyToAdd = 500000;
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
 
-  //     // send trader quote tokens
-  //     await quoteToken.transfer(trader.address, amountToAdd);
-  //     // add approvals for exchange to trade their quote tokens
-  //     await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
-  //     // confirm no balance before trade.
-  //     expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
-  //     expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await sdk.changeSigner(liquidityProvider);
 
-  //     // swap tokens
-  //     const swapAmount = 10000000;
-  //     const testMethod = exchangeClass.swapQuoteTokenForBaseToken.bind(
-  //       exchangeClass,
-  //       swapAmount,
-  //       1,
-  //       expiration,
-  //     );
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     await expectThrowsAsync(
-  //       testMethod,
-  //       'Origin: exchange, Code: 12, Message: NOT_ENOUGH_QUOTE_TOKEN_BALANCE, Path: unknown.',
-  //     );
-  //   });
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //   it('Should quoteToken allowance balance be less than quoteToken to be swapped', async () => {
-  //     // create expiration 50 minutes from now.
-  //     const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
-  //     const liquidityProvider = accounts[1];
-  //     const trader = accounts[2];
-  //     const liquidityProviderInitialBalances = 1000000;
-  //     const amountToAdd = 1000000;
-  //     const baseTokenQtyToAdd = 10000;
-  //     const quoteTokenQtyToAdd = 50000;
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expiration,
+      );
 
-  //     await sdk.changeSigner(liquidityProvider);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+      // send trader quote tokens
+      await quoteToken.transfer(trader.address, amountToAdd);
 
-  //     // send users (liquidity provider) base and quote tokens for easy accounting.
+      // add approvals for exchange to trade their quote tokens
+      await sdk.changeSigner(trader);
+      const swapAmount = 100;
 
-  //     await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      // confirm no balance before trade.
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
-  //     await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      // swap tokens
+      const testMethod = exchangeInstance.swapQuoteTokenForBaseToken.bind(
+        exchangeInstance,
+        swapAmount,
+        1,
+        expiration,
+      );
 
-  //     // add approvals
+      await expectThrowsAsync(testMethod, 'Exchange: Not allowed to spend that much FUSD token');
+    });
 
-  //     await exchangeClass.quoteToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+    it('Should timestamp be expired', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expirationValid = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      // create expiration 50 minutes before now.
+      const expirationInvalid = Math.round(new Date().getTime() / 1000 - 60 * 50);
+      const liquidityProvider = accounts[1];
+      const trader = accounts[2];
+      const liquidityProviderInitialBalances = 1000000;
+      const amountToAdd = 50000;
+      const baseTokenQtyToAdd = 100000;
+      const quoteTokenQtyToAdd = 500000;
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
 
-  //     await exchangeClass.baseToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await sdk.changeSigner(liquidityProvider);
 
-  //     await exchangeClass.addLiquidity(
-  //       baseTokenQtyToAdd,
-  //       quoteTokenQtyToAdd,
-  //       1,
-  //       1,
-  //       liquidityProvider.address,
-  //       expiration,
-  //     );
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     await sdk.changeSigner(trader);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     // send trader quote tokens
-  //     await quoteToken.transfer(trader.address, amountToAdd);
-  //     // add approvals for exchange to trade their quote tokens
-  //     await exchangeClass.quoteToken.approve(exchangeClass.address, 1);
-  //     // confirm no balance before trade.
-  //     expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
-  //     expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expirationValid,
+      );
 
-  //     // swap tokens
-  //     const swapAmount = 100000;
-  //     const testMethod = exchangeClass.swapQuoteTokenForBaseToken.bind(
-  //       exchangeClass,
-  //       swapAmount,
-  //       1,
-  //       expiration,
-  //     );
+      // send trader quote tokens
+      await quoteToken.transfer(trader.address, amountToAdd);
 
-  //     await expectThrowsAsync(
-  //       testMethod,
-  //       'Origin: exchange, Code: 13, Message: TRANSFER_NOT_APPROVED_BY_USER, Path: unknown.',
-  //     );
-  //   });
+      // add approvals for exchange to trade their quote tokens
+      await sdk.changeSigner(trader);
+      const swapAmount = 100;
+      await exchangeInstance.quoteToken.approve(exchangeInstance.address, amountToAdd);
+      // confirm no balance before trade.
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
-  //   it('Should timestamp be expired', async () => {
-  //     // create expiration 50 minutes from now.
-  //     const expirationValid = Math.round(new Date().getTime() / 1000 + 60 * 50);
-  //     // create expiration 50 minutes before now.
-  //     const expirationInvalid = Math.round(new Date().getTime() / 1000 - 60 * 50);
-  //     const liquidityProvider = accounts[1];
-  //     const trader = accounts[2];
-  //     const liquidityProviderInitialBalances = 1000000;
-  //     const amountToAdd = 1000000;
-  //     const baseTokenQtyToAdd = 10000;
-  //     const quoteTokenQtyToAdd = 50000;
+      // swap tokens
+      const testMethod = exchangeInstance.swapQuoteTokenForBaseToken.bind(
+        exchangeInstance,
+        swapAmount,
+        1,
+        expirationInvalid,
+      );
 
-  //     await sdk.changeSigner(liquidityProvider);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+      await expectThrowsAsync(testMethod, 'Exchange: Requested expiration is in the past');
+    });
 
-  //     // send users (liquidity provider) base and quote tokens for easy accounting.
+    it('Should price trades correctly', async () => {
+      const { baseToken, quoteToken, elasticSwapSDK, sdk } = coreObjects;
+      // create expiration 50 minutes from now.
+      const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
+      const liquidityProvider = accounts[1];
+      const trader = accounts[2];
+      const liquidityProviderInitialBalances = 1000000;
+      const amountToAdd = 500000;
+      const baseTokenQtyToAdd = 100000;
+      const quoteTokenQtyToAdd = 500000;
+      const exchangeInstance = new elasticSwapSDK.Exchange(
+        sdk,
+        exchange.address,
+        baseToken.address,
+        quoteToken.address,
+      );
 
-  //     await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      // send users (liquidity provider) base and quote tokens for easy accounting.
+      await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      await sdk.changeSigner(liquidityProvider);
 
-  //     await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
+      // add approvals
+      await exchangeInstance.quoteToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     // add approvals
+      await exchangeInstance.baseToken.approve(
+        exchangeInstance.address,
+        liquidityProviderInitialBalances,
+      );
 
-  //     await exchangeClass.quoteToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+      await exchangeInstance.addLiquidity(
+        baseTokenQtyToAdd,
+        quoteTokenQtyToAdd,
+        1,
+        1,
+        liquidityProvider.address,
+        expiration,
+      );
 
-  //     await exchangeClass.baseToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
+      // send trader quote tokens
+      await quoteToken.transfer(trader.address, amountToAdd);
 
-  //     await exchangeClass.addLiquidity(
-  //       baseTokenQtyToAdd,
-  //       quoteTokenQtyToAdd,
-  //       1,
-  //       1,
-  //       liquidityProvider.address,
-  //       expirationValid,
-  //     );
+      // add approvals for exchange to trade their quote tokens
+      await sdk.changeSigner(trader);
+      await exchangeInstance.quoteToken.approve(exchangeInstance.address, amountToAdd);
+      // confirm no balance before trade.
+      expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
+      expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
 
-  //     await sdk.changeSigner(trader);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
+      // trader executes the first trade, our pricing should be ~1:1 currently minus fees
+      const swapAmount = 100000;
+      const expectedFee = swapAmount * 0.005;
 
-  //     // send trader quote tokens
-  //     await quoteToken.transfer(trader.address, amountToAdd);
-  //     // add approvals for exchange to trade their quote tokens
-  //     await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
-  //     // confirm no balance before trade.
-  //     expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
-  //     expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
+      const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeInstance.address);
+      const pricingConstantK =
+        (await exchangeInstance.baseToken.balanceOf(exchangeInstance.address)) *
+        (await exchangeInstance.quoteToken.balanceOf(exchangeInstance.address));
+      const baseTokenQtyReserveBeforeTrade = pricingConstantK / quoteTokenReserveBalance.toNumber();
+      const baseTokenQtyReserveAfterTrade =
+        pricingConstantK / (quoteTokenReserveBalance.toNumber() + swapAmount - expectedFee);
+      const baseTokenQtyExpected = baseTokenQtyReserveBeforeTrade - baseTokenQtyReserveAfterTrade;
+      const baseTokenQtyCalculated = await exchangeInstance.getBaseTokenQtyFromQuoteTokenQty(
+        swapAmount,
+      );
+      expect(Math.floor(baseTokenQtyCalculated.toNumber())).to.be.equal(
+        Math.floor(baseTokenQtyExpected),
+      );
 
-  //     // swap tokens
-  //     const swapAmount = 100000;
-  //     const testMethod = exchangeClass.swapQuoteTokenForBaseToken.bind(
-  //       exchangeClass,
-  //       swapAmount,
-  //       1,
-  //       expirationInvalid,
-  //     );
-
-  //     await expectThrowsAsync(
-  //       testMethod,
-  //       'Origin: exchange, Code: 14, Message: TIMESTAMP_EXPIRED, Path: unknown.',
-  //     );
-  //   });
-
-  //   it('Should price trades correctly', async () => {
-  //     // create expiration 50 minutes from now.
-  //     const expiration = Math.round(new Date().getTime() / 1000 + 60 * 50);
-  //     const liquidityProvider = accounts[1];
-  //     const trader = accounts[2];
-  //     const liquidityProviderInitialBalances = 1000000;
-  //     const amountToAdd = 1000000;
-  //     const baseTokenQtyToAdd = 10000;
-  //     const quoteTokenQtyToAdd = 50000;
-
-  //     await sdk.changeSigner(liquidityProvider);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
-
-  //     // send users (liquidity provider) base and quote tokens for easy accounting.
-
-  //     await baseToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
-
-  //     await quoteToken.transfer(liquidityProvider.address, liquidityProviderInitialBalances);
-
-  //     // add approvals
-
-  //     await exchangeClass.quoteToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
-
-  //     await exchangeClass.baseToken.approve(
-  //       exchangeClass.address,
-  //       liquidityProviderInitialBalances,
-  //     );
-
-  //     await exchangeClass.addLiquidity(
-  //       baseTokenQtyToAdd,
-  //       quoteTokenQtyToAdd,
-  //       1,
-  //       1,
-  //       liquidityProvider.address,
-  //       expiration,
-  //     );
-
-  //     await sdk.changeSigner(trader);
-  //     exchangeClass = new elasticSwapSDK.Exchange(
-  //       sdk,
-  //       exchange.address,
-  //       baseToken.address,
-  //       quoteToken.address,
-  //     );
-
-  //     // send trader quote tokens
-  //     await quoteToken.transfer(trader.address, amountToAdd);
-  //     // add approvals for exchange to trade their quote tokens
-  //     await exchangeClass.quoteToken.approve(exchangeClass.address, amountToAdd);
-  //     // confirm no balance before trade.
-  //     expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(0);
-  //     expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(amountToAdd);
-
-  //     // trader executes the first trade, our pricing should be ~1:1 currently minus fees
-  //     const swapAmount = 100000;
-  //     const expectedFee = swapAmount * liquidityFee;
-
-  //     const quoteTokenReserveBalance = await quoteToken.balanceOf(exchangeClass.address);
-  //     const pricingConstantK =
-  //       (await exchangeClass.baseToken.balanceOf(exchangeClass.address)) *
-  //       (await exchangeClass.quoteToken.balanceOf(exchangeClass.address));
-  //     const baseTokenQtyReserveBeforeTrade = pricingConstantK / quoteTokenReserveBalance.toNumber();
-  //     const baseTokenQtyReserveAfterTrade =
-  //       pricingConstantK / (quoteTokenReserveBalance.toNumber() + swapAmount - expectedFee);
-  //     const baseTokenQtyExpected = baseTokenQtyReserveBeforeTrade - baseTokenQtyReserveAfterTrade;
-
-  //     await exchangeClass.swapQuoteTokenForBaseToken(swapAmount, 1, expiration);
-  //     // confirm trade occurred at expected
-  //     expect((await baseToken.balanceOf(trader.address)).toNumber()).to.equal(
-  //       Math.trunc(baseTokenQtyExpected),
-  //     );
-  //     expect((await quoteToken.balanceOf(trader.address)).toNumber()).to.equal(
-  //       amountToAdd - swapAmount,
-  //     );
-  //   });
-  // });
+      await exchangeInstance.swapQuoteTokenForBaseToken(swapAmount, 1, expiration);
+      // confirm trade occurred at expected
+      expect(Math.floor((await baseToken.balanceOf(trader.address)).toNumber())).to.equal(
+        Math.floor(baseTokenQtyExpected),
+      );
+      expect(Math.floor((await quoteToken.balanceOf(trader.address)).toNumber())).to.equal(
+        Math.floor(amountToAdd - swapAmount),
+      );
+    });
+  });
 
   describe('addLiquidity', () => {
     it('Should quoteToken and baseToken qty to be swapped be less than quoteToken and baseToken minimum qty', async () => {
