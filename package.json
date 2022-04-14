@@ -1,6 +1,6 @@
 {
   "name": "@elasticswap/sdk",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Official SDK for ElasticSwap",
   "main": "dist/index.js",
   "repository": "https://github.com/elasticswap/elasticswap-sdk",
