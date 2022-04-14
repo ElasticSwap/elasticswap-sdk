@@ -196,12 +196,12 @@ export default class StakingPools extends Base {
 
     // time token DAO
     if (poolToken === this.sdk.contractAddress('TimeTokenDAO')) {
-      return this.toBigNumber(1); // 100% because the DAO doesn't really have an APR / APY
+      return this.toBigNumber('0.1'); // 100% because the DAO doesn't really have an APR / APY
     }
 
     // time token Team
     if (poolToken === this.sdk.contractAddress('TimeTokenTeam')) {
-      return this.toBigNumber(1); // 100% because the Team doesn't really have an APR / APY
+      return this.toBigNumber('0.16'); // 100% because the Team doesn't really have an APR / APY
     }
 
     // token = tic pair, 1 to 2
