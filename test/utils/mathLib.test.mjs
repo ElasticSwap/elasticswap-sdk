@@ -302,8 +302,6 @@ describe('MathLib', async () => {
         .multipliedBy(gamma)
         .dividedBy(BigNumber(1).minus(gamma))
         .dp(18, ROUND_DOWN);
-      console.log(expectedLiquidityTokenQty.toString());
-
       // passing in decimal as sdk expects it in decimal form
       const sdkCalculatedLiquidityTokens =
         calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay(

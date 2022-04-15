@@ -152,7 +152,6 @@ describe('MathLib2', async () => {
       // internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
       // we have 1000:5000 base:quote in the pool initially, base token rebases up by 500
       // quote token required (for complete offset) => 500/(1000/5000) => 2500
-      // providing 1250 quote should provide ~half of the amount as you would get with complete SAE
       const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
       const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
 
@@ -181,7 +180,7 @@ describe('MathLib2', async () => {
       expect(calculatedLPTokenGenerated.toString()).to.equal('499999999999999999450');
     });
 
-    it.only('Properly issues LP when base token decay is present and SAE + DAE happens', () => {
+    it('Properly issues LP when base token decay is present and SAE + DAE happens', () => {
       // internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
       // we have 1000:5000 base:quote in the pool initially, base token rebases up by 500
       // quote token required (for complete offset) => 500/(1000/5000) => 2500
@@ -211,13 +210,107 @@ describe('MathLib2', async () => {
         totalLPTokenSupply,
         internalBalances,
       );
-      
-      // After SAE, 
+
+      // After SAE,
       // Pool balances - 1500 base, 7500 quote (Ro outstanding is ~6k (5k initially + ~1k for SAE) )
       // LP Generated for SAE is ~1k
-      // User has provided additional 1000 quote and 1000 base, for this DAE LP gets additiona; ~800 Ro
+      // User has provided additional 1000 quote and 1000 base,for DAE LP gets additional ~800 Ro
       // Therefore, LP issued is ~1800 for the participant LP
       expect(calculatedLPTokenGenerated.toString()).to.equal('1800000000000000002720');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE (complete) occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for complete offset) => iOmega*Decay = 1*5k = 5k
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.BigNumber.from(0);
+      const baseTokenQty = ethers.utils.parseUnits('5000', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      console.log('complete SAE', calculatedLPTokenGenerated.toString());
+      expect(calculatedLPTokenGenerated.toString()).to.equal('3333333333333333333333');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE (partial) occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for 50% offset) => iOmega*Decay/2 => 2500
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.BigNumber.from(0);
+      const baseTokenQty = ethers.utils.parseUnits('2500', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      console.log(calculatedLPTokenGenerated.toString());
+      expect(calculatedLPTokenGenerated.toString()).to.equal('1666666666666666664722');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE + DAE occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for complete offset) => iOmega*Decay = 1*5k = 5k
+      // a clearer explanation of this example can be found in ElasticSwapMath.md
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.utils.parseUnits('10000', 18);
+      const baseTokenQty = ethers.utils.parseUnits('15000', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      console.log(calculatedLPTokenGenerated.toString());
+      expect(calculatedLPTokenGenerated.toString()).to.equal('16666666666666666666666');
     });
   });
 });

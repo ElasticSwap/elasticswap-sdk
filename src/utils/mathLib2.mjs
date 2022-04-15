@@ -98,7 +98,6 @@ export const getLPTokenQtyFromTokenQtys = (
   totalLPTokenSupply,
   internalBalances,
 ) => {
-  console.log("getLPTokenQtyFromTokenQtys");
   if (totalLPTokenSupply.eq(0)) {
     // TODO: do we want to handle this case?
     // return squareRoot(baseTokenQty.mul(quoteTokenQty)).sub(MIN_LIQ);
@@ -167,7 +166,6 @@ export const getLPTokenQtyFromTokenQtys = (
       ),
     );
   }
-
   return lpTokensGenerated;
 };
 
@@ -268,7 +266,7 @@ const calculateAddBaseTokenLiquidityQuantities = (
   totalSupplyOfLP,
   internalBalances,
 ) => {
-  const maxBaseTokenQty = internalBalances.baseTokenReserveQty.sub(baseTokenQty);
+  const maxBaseTokenQty = internalBalances.baseTokenReserveQty.sub(baseTokenReserveQty);
 
   let baseTokenQtyUsed;
   if (baseTokenQty.gt(maxBaseTokenQty)) {
@@ -334,7 +332,7 @@ const calculateAddQuoteTokenLiquidityQuantities = (
     internalBalances.baseTokenReserveQty.add(baseTokenQtyDecayChange);
   updatedInternalBalances.quoteTokenReserveQty =
     internalBalances.quoteTokenReserveQty.add(quoteTokenQtyUsed);
-  
+
   const lpTokenQty = calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay(
     baseTokenReserveQty,
     totalSupplyOfLiquidityTokens,
