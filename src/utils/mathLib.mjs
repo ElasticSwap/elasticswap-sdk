@@ -88,12 +88,11 @@ export const calculateAddBaseTokenLiquidityQuantities = (
   // quoteTokenReserveQty += quoteTokenQtyDecayChange;
   // baseTokenReserveQty += baseTokenQty;
 
-  const liquidityTokenQty = calculateLiquidityTokenQtyForSingleAssetEntry(
+  const liquidityTokenQty = calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
+    baseTokenReserveQtyBN,
     totalSupplyOfLiquidityTokensBN,
     baseTokenQty,
     internalBalancesBN.baseTokenReserveQty,
-    quoteTokenQtyDecayChange,
-    quoteTokenDecay,
   );
 
   const baseAndLiquidityTokenQty = {
@@ -168,12 +167,12 @@ export const calculateAddQuoteTokenLiquidityQuantities = (
   internalBalancesBN.quoteTokenReserveQty =
     internalBalancesBN.quoteTokenReserveQty.plus(quoteTokenQty);
 
-  const liquidityTokenQty = calculateLiquidityTokenQtyForSingleAssetEntry(
+  const liquidityTokenQty = calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay(
+    baseTokenReserveQtyBN,
     totalSupplyOfLiquidityTokensBN,
-    quoteTokenQty,
+    quoteTokenQtyDesiredBN,
     internalBalancesBN.quoteTokenReserveQty,
-    baseTokenQtyDecayChange,
-    baseTokenDecay,
+    internalBaseTokenToQuoteTokenRatio,
   );
 
   const quoteAndLiquidityTokenQty = {
@@ -515,60 +514,129 @@ export const calculateLiquidityTokenQtyForDoubleAssetEntry = (
 
 /**
  * @dev used to calculate the qty of liquidity tokens (deltaRo) we will be issued to a supplier
- * of a single asset entry when decay is present.
+ * of a single asset entry when base token decay is present.
+ * @param baseTokenReserveBalance the total balance (external) of base tokens in our pool (Alpha)
  * @param totalSupplyOfLiquidityTokens the total supply of our exchange's liquidity tokens (aka Ro)
  * @param tokenQtyAToAdd the amount of tokens being added by the caller to remove the current decay
- * @param internalTokenAReserveQty the internal balance (X or Y) of token A as a result
- * of this transaction
- * @param tokenBDecayChange the change that will occur in the decay in the opposite token
- * as a result of
- * this transaction
- * @param tokenBDecay the amount of decay in tokenB
- *
+ * @param internalTokenAReserveQty the internal balanceof A as a result of this transaction
+ * @param omega - ratio of internal balances of baseToken and quoteToken: baseToken/quoteToken
  * @return liquidityTokenQty qty of liquidity tokens to be issued in exchange
  */
-export const calculateLiquidityTokenQtyForSingleAssetEntry = (
+export const calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay = (
+  baseTokenReserveBalance,
   totalSupplyOfLiquidityTokens,
   tokenQtyAToAdd,
   internalTokenAReserveQty,
-  tokenBDecayChange,
-  tokenBDecay,
+  omega,
 ) => {
+  /**
+
+  (is the formula in the terms of quoteToken)
+              ΔY
+      = ---------------------
+          Alpha/Omega + Y'
+
+  */
+
   // cleanse input to BN
+  const baseTokenReserveBalanceBN = toBigNumber(baseTokenReserveBalance);
   const totalSupplyOfLiquidityTokensBN = toBigNumber(totalSupplyOfLiquidityTokens);
   const tokenQtyAToAddBN = toBigNumber(tokenQtyAToAdd);
   const internalTokenAReserveQtyBN = toBigNumber(internalTokenAReserveQty);
-  const tokenBDecayChangeBN = toBigNumber(tokenBDecayChange);
-  const tokenBDecayBN = toBigNumber(tokenBDecay);
-  const aTokenDiv = tokenQtyAToAddBN.dividedBy(internalTokenAReserveQtyBN);
-  const bTokenWADMul = tokenBDecayChangeBN;
-  const aAndBDecayMul = aTokenDiv.multipliedBy(bTokenWADMul);
-  const AAndBDecayMulDivByTokenBDecay = aAndBDecayMul.dividedBy(tokenBDecayBN);
-  const altWGamma = AAndBDecayMulDivByTokenBDecay.dividedBy(toBigNumber(2)).dp(18, ROUND_DOWN);
-  // /*
+  const omegaBN = toBigNumber(omega);
 
-  // # gamma = deltaY / Y' / 2 * (deltaX / alphaDecay')
+  if (
+    baseTokenReserveBalanceBN.isNaN() ||
+    totalSupplyOfLiquidityTokensBN.isNaN() ||
+    tokenQtyAToAddBN.isNaN() ||
+    internalTokenAReserveQtyBN.isNaN() ||
+    omegaBN.isNaN()
+  ) {
+    throw NAN_ERROR;
+  }
 
-  //             deltaY  *   deltaX * 2
-  // # gamma =  ------------------------
-  //               Y'    *   alphaDecay'
+  if (
+    baseTokenReserveBalanceBN.isNegative() ||
+    totalSupplyOfLiquidityTokensBN.isNegative() ||
+    tokenQtyAToAddBN.isNegative() ||
+    internalTokenAReserveQtyBN.isNegative() ||
+    omegaBN.isNegative()
+  ) {
+    throw NEGATIVE_INPUT;
+  }
 
-  // */
+  const ratio = baseTokenReserveBalanceBN.dividedBy(omegaBN).dp(18, ROUND_DOWN);
+  const denominator = ratio.plus(internalTokenAReserveQtyBN);
+  const gamma = tokenQtyAToAddBN.dividedBy(denominator).dp(18, ROUND_DOWN);
 
-  /*
-
-  # liquidityTokens - Ro
-  # ΔRo = (Ro/(1 - γ)) * γ
-
-  # deltaRo =  totalSupplyOfLiquidityTokens  * gamma
-              ------------------------------------------
-                  ( 1 - gamma )
-
-  */
   const liquidityTokenQty = totalSupplyOfLiquidityTokensBN
-    .multipliedBy(altWGamma)
-    .dividedBy(toBigNumber(1).minus(altWGamma))
-    .dp(0, ROUND_DOWN);
+    .multipliedBy(gamma)
+    .dividedBy(toBigNumber(1).minus(gamma))
+    .dp(18, ROUND_DOWN);
+
+
+  return liquidityTokenQty;
+};
+
+/**
+ * @dev used to calculate the qty of liquidity tokens (deltaRo) we will be issued to a supplier
+ * of a single asset entry when quote decay is present.
+ * @param _baseTokenReserveBalance the total balance (external) of base tokens in our pool (Alpha)
+ * @param _totalSupplyOfLiquidityTokens the total supply of our exchange's liquidity tokens (aka Ro)
+ * @param _tokenQtyAToAdd the amount of tokens being added by the caller to remove the current decay
+ * @param _internalTokenAReserveQty the internal balanceA as a result of this transaction
+ * @return liquidityTokenQty qty of liquidity tokens to be issued in exchange
+ */
+export const calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay = (
+  baseTokenReserveBalance,
+  totalSupplyOfLiquidityTokens,
+  tokenQtyAToAdd,
+  internalTokenAReserveQty,
+) => {
+  /**
+
+        ΔX
+= -------------------  / (denominator may be Alpha' instead of X)
+    X + (Alpha + ΔX)
+
+*/
+
+  // cleanse input to BN
+  const baseTokenReserveBalanceBN = toBigNumber(baseTokenReserveBalance);
+  const totalSupplyOfLiquidityTokensBN = toBigNumber(totalSupplyOfLiquidityTokens);
+  const tokenQtyAToAddBN = toBigNumber(tokenQtyAToAdd);
+  const internalTokenAReserveQtyBN = toBigNumber(internalTokenAReserveQty);
+
+  if (
+    baseTokenReserveBalanceBN.isNaN() ||
+    totalSupplyOfLiquidityTokensBN.isNaN() ||
+    tokenQtyAToAddBN.isNaN() ||
+    internalTokenAReserveQtyBN.isNaN()
+  ) {
+    throw NAN_ERROR;
+  }
+
+  if (
+    baseTokenReserveBalanceBN.isNegative() ||
+    totalSupplyOfLiquidityTokensBN.isNegative() ||
+    tokenQtyAToAddBN.isNegative() ||
+    internalTokenAReserveQtyBN.isNegative()
+  ) {
+    throw NEGATIVE_INPUT;
+  }
+
+  const denominator = internalTokenAReserveQtyBN
+    .plus(baseTokenReserveBalanceBN)
+    .plus(tokenQtyAToAddBN);
+  const gamma = tokenQtyAToAddBN.dividedBy(denominator).dp(18, ROUND_DOWN);
+
+  const liquidityTokenQty = totalSupplyOfLiquidityTokensBN
+    .multipliedBy(gamma)
+    .dividedBy(toBigNumber(1).minus(gamma))
+    .dp(18, ROUND_DOWN);
+
+  
+
   return liquidityTokenQty;
 };
 
@@ -872,7 +940,8 @@ export default {
   calculateExchangeRate,
   calculateFees,
   calculateLiquidityTokenQtyForDoubleAssetEntry,
-  calculateLiquidityTokenQtyForSingleAssetEntry,
+  calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay,
+  calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay,
   calculateOutputAmountLessFees,
   calculateQty,
   calculateQtyToReturnAfterFees,

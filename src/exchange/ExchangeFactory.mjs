@@ -194,12 +194,18 @@ export default class ExchangeFactory extends Cachable {
     }
 
     // instantiate a new exchange instance
-    exchanges[this.address][exchangeAddress] = new Exchange(
+    const exchange = new Exchange(
       this.sdk,
       exchangeAddress,
       baseTokenAddress,
       quoteTokenAddress,
     );
+
+    // wait for the exchange to be fully initialized
+    await exchange.awaitInitialized;
+
+    // cache the exchange instance
+    exchanges[this.address][exchangeAddress] = exchange;
 
     // update subscribers
     this.touch();
@@ -233,6 +239,9 @@ export default class ExchangeFactory extends Cachable {
    * @memberof ExchangeFactory
    */
   async exchangeAddressByTokenAddress(baseTokenAddress, quoteTokenAddress, overrides) {
+    validateIsAddress(baseTokenAddress, { prefix });
+    validateIsAddress(quoteTokenAddress, { prefix });
+
     // if there are overrides and this is not a multicall request, fetch directly from the network
     if (isPOJO(overrides) && !overrides.multicall) {
       return this.readonlyContract.exchangeAddressByTokenAddress(

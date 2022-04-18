@@ -22,7 +22,7 @@ export default class TokenList extends Cachable {
 
     this._account = this.sdk.account;
     this._data = data || {};
-    this._netorkId = this.sdk.networkId;
+    this._networkId = this.sdk.networkId;
     this._tokens = {}; // updated by _processData
     this._url = url;
 
@@ -33,7 +33,7 @@ export default class TokenList extends Cachable {
     this.sdk.subscribe(({ account, networkId }) => {
       if (networkId !== this._networkId || account !== this._account) {
         this._account = this.sdk.account;
-        this._netorkId = this.sdk.networkId;
+        this._networkId = this.sdk.networkId;
         this._processData(); // reprocess data to use the new chain / account
       }
     });
@@ -192,7 +192,7 @@ export default class TokenList extends Cachable {
         tokens[token.address] = token;
         if (this.sdk.account) {
           // as the token for the balance of the current account to queue eager loading
-          token.balanceOf(this.sdk.account);
+          token.balanceOf(this.sdk.account).catch(() => {}); // errors here can be safely skipped
         }
       }
     }

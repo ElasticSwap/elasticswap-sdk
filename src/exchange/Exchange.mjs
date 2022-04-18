@@ -23,8 +23,8 @@ export default class Exchange extends ERC20 {
     this._quoteTokenAddress = quoteTokenAddress.toLowerCase();
 
     // subscribe to balance updates
-    this.baseToken.balanceOf(this.address);
-    this.quoteToken.balanceOf(this.address);
+    this.baseToken.balanceOf(this.address).catch(() => {}); // errors here don't matter
+    this.quoteToken.balanceOf(this.address).catch(() => {}); // errors here don't matter
 
     // replicate touches between this and the standard ERC20 instance from the sdk
     this.sdk.erc20(this.address).subscribe(() => this.touch());
