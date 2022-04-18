@@ -4,13 +4,21 @@
 import ERC20 from '../tokens/ERC20.mjs';
 import { isPOJO } from '../utils/typeChecks.mjs';
 import { toBigNumber } from '../utils/utils.mjs';
-import { validate, validateIsAddress, validateIsBigNumber } from '../utils/validations.mjs';
+import {
+  validate,
+  validateIsAddress,
+  validateIsBigNumber,
+  validateIsNumber,
+} from '../utils/validations.mjs';
 import {
   getBaseTokenQtyFromQuoteTokenQty,
+  getLPTokenQtyFromTokenQtys,
   getQuoteTokenQtyFromBaseTokenQty,
+  getTokenQtysFromLPTokenQty,
 } from '../utils/mathLib2.mjs';
 
 const prefix = 'Exchange';
+const BASIS_POINTS = 10000;
 
 export default class Exchange extends ERC20 {
   constructor(sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress) {
@@ -375,6 +383,14 @@ export default class Exchange extends ERC20 {
     );
   }
 
+  /**
+   * Called to swap base tokens for quote tokens.
+   * @param {string | BigNumber | Number} baseTokenQty amount of base tokens desired to swap
+   * @param {string | BigNumber | Number} quoteTokenQtyMin min amount of quote tokens to be received
+   * @param {number} expirationTimestamp - a unix timestamp representing when this request expires
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @return {TransactionResponse}
+   */
   async swapBaseTokenForQuoteToken(
     baseTokenQty,
     quoteTokenQtyMin,
@@ -425,6 +441,42 @@ export default class Exchange extends ERC20 {
     return receipt;
   }
 
+  /**
+   * Convenience wrapper for swapBaseTokenForQuoteTokens
+   * @param {} baseTokenQty amount of base tokens to swap
+   * @param {*} slippagePercentageBP allowed slippage percentage in basis points
+   * @param {*} requestTimeoutSeconds number of seconds from now to expire request
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @return {TransactionResponse}
+   */
+  async swapBaseTokens(baseTokenQty, slippagePercentageBP, requestTimeoutSeconds, overrides = {}) {
+    const baseTokenQtyBN = this.toBigNumber(baseTokenQty);
+    validateIsBigNumber(baseTokenQtyBN, { prefix });
+    validateIsNumber(slippagePercentageBP, prefix);
+    validateIsNumber(requestTimeoutSeconds, prefix);
+
+    const expectedQuoteTokenQty = await this.getQuoteTokenQtyFromBaseTokenQty(baseTokenQtyBN);
+    const slippageAmount = expectedQuoteTokenQty
+      .multipliedBy(slippagePercentageBP)
+      .dividedBy(BASIS_POINTS);
+    const minQuoteTokenQty = expectedQuoteTokenQty.minus(slippageAmount);
+    const expiration = Math.floor(Date.now() / 1000 + requestTimeoutSeconds);
+    return this.swapBaseTokenForQuoteTokens(
+      baseTokenQtyBN,
+      minQuoteTokenQty,
+      expiration,
+      overrides,
+    );
+  }
+
+  /**
+   * Called to swap quote tokens for base tokens.
+   * @param {string | BigNumber | Number} quoteTokenQty amount of quote tokens to swap
+   * @param {string | BigNumber | Number} baseTokenQtyMin min amount of baseTokens to receive back
+   * @param {number} expirationTimestamp - a unix timestamp representing when this request expires
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @return {TransactionResponse}
+   */
   async swapQuoteTokenForBaseToken(
     quoteTokenQty,
     baseTokenQtyMin,
@@ -475,6 +527,28 @@ export default class Exchange extends ERC20 {
     return receipt;
   }
 
+  /**
+   * Convenience wrapper for swapQuoteTokenForBaseToken to swapQuoteTokens
+   * @param {} quoteTokenQty amount of quote tokens to swap
+   * @param {*} slippagePercentageBP allowed slippage percentage in basis points
+   * @param {*} requestTimeoutSeconds number of seconds from now to expire request
+   * @param {Object} [overrides={}] - @see {@link Base#sanitizeOverrides}
+   * @return {TransactionResponse}
+   */
+  async swapQuoteTokens(quoteTokenQty, slippagePercentageBP, requestTimeoutSeconds, overrides) {
+    const quoteTokenQtyBN = this.toBigNumber(quoteTokenQty);
+    validateIsBigNumber(quoteTokenQtyBN, { prefix });
+    validateIsNumber(slippagePercentageBP, prefix);
+    validateIsNumber(requestTimeoutSeconds, prefix);
+
+    const expectedBaseTokenQty = await this.getBaseTokenQtyFromQuoteTokenQty(quoteTokenQtyBN);
+    const slippageAmount = expectedBaseTokenQty
+      .multipliedBy(slippagePercentageBP)
+      .dividedBy(BASIS_POINTS);
+    const minBaseTokenQty = expectedBaseTokenQty.minus(slippageAmount);
+    const expiration = Math.floor(Date.now() / 1000 + requestTimeoutSeconds);
+    return this.swapQuoteTokenForBaseToken(quoteTokenQtyBN, minBaseTokenQty, expiration, overrides);
+  }
   // CALCULATIONS
 
   /**
@@ -501,7 +575,7 @@ export default class Exchange extends ERC20 {
 
   /**
    * gets the expected output amount of quote tokens tokens given the input
-   * @param {string | BigNumber | Number } baseTokenQty in native, decimal format of the baseToken
+   * @param {string | BigNumber | number} baseTokenQty in native, decimal format of the baseToken
    * @returns BigNumber decimal representation of expected output amount
    */
   async getQuoteTokenQtyFromBaseTokenQty(baseTokenQty) {
@@ -515,6 +589,59 @@ export default class Exchange extends ERC20 {
       internalBalances,
     );
     return this.toBigNumber(rawQuoteTokenQty, this.quoteToken.decimals);
+  }
+
+  /**
+   * Computes the expected amounts of base and quote tokens to be returned to a user for a give
+   * amount of lpTokenQty
+   * @param {string | BigNumber | number} lpTokenQty in decimal format of lp token
+   * @returns {object} { baseTokenQty: BigNumber, quoteTokenQty: BigNumber }
+   */
+  async getTokenQtysFromLPTokenQty(lpTokenQty) {
+    const [baseTokenReserveQty, quoteTokenReserveQty, totalSupply] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.quoteToken.abi, this.quoteToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'totalSupply'),
+    ]);
+    const rawTokenQtys = getTokenQtysFromLPTokenQty(
+      this.toEthersBigNumber(lpTokenQty, this._decimals),
+      baseTokenReserveQty,
+      quoteTokenReserveQty,
+      totalSupply,
+    );
+
+    return {
+      baseTokenQty: this.toBigNumber(rawTokenQtys.baseTokenQty, this.baseToken.decimals),
+      quoteTokenQty: this.toBigNumber(rawTokenQtys.quoteTokenQty, this.quoteToken.decimals),
+    };
+  }
+
+  /**
+   * Calculates the number of LP tokens generated given the inputs
+   * @param {string | BigNumber | number} baseTokenQty base tokens to contribute
+   * @param {string | BigNumber | number} quoteTokenQty quote tokens to contribute
+   * @returns BigNumber lp token qty
+   */
+  async getLPTokenQtyFromTokenQtys(baseTokenQty, quoteTokenQty) {
+    const [baseTokenReserveQty, totalSupply, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'totalSupply'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+    const rawLPTokenQty = getLPTokenQtyFromTokenQtys(
+      this.toEthersBigNumber(baseTokenQty, this.baseToken.decimals),
+      this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
+      baseTokenReserveQty,
+      totalSupply,
+      internalBalances,
+    );
+    return this.toBigNumber(rawLPTokenQty, this._decimals);
   }
 
   // wraps the transaction in a notification popup and resolves when it has been mined

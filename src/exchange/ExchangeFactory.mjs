@@ -194,12 +194,7 @@ export default class ExchangeFactory extends Cachable {
     }
 
     // instantiate a new exchange instance
-    const exchange = new Exchange(
-      this.sdk,
-      exchangeAddress,
-      baseTokenAddress,
-      quoteTokenAddress,
-    );
+    const exchange = new Exchange(this.sdk, exchangeAddress, baseTokenAddress, quoteTokenAddress);
 
     // wait for the exchange to be fully initialized
     await exchange.awaitInitialized;

@@ -1,6 +1,6 @@
 {
   "name": "@elasticswap/sdk",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "Official SDK for ElasticSwap",
   "main": "dist/index.js",
   "repository": "https://github.com/elasticswap/elasticswap-sdk",
@@ -27,7 +27,7 @@
     "release": "npm publish --access=public",
     "stats": "npx webpack -c ./webpack.config.js --json > stats.json",
     "test": "yarn run prettier:test && yarn run lint:test && yarn run test:run",
-    "test:run": "mocha -timeout 10000 -exit './test/**/**.test.mjs' --experimental-json-modules"
+    "test:run": "mocha -timeout 30000 -exit './test/**/**.test.mjs' --experimental-json-modules"
   },
   "devDependencies": {
     "@babel/cli": "^7.15.7",

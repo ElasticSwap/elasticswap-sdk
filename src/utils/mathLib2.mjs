@@ -1,7 +1,10 @@
 import { ethers } from 'ethers';
 
 export const BASIS_POINTS = ethers.BigNumber.from('10000');
-export const WAD = ethers.utils.parseUnits('1', 18);
+const ZERO = ethers.BigNumber.from(0);
+const ONE = ethers.BigNumber.from(1);
+const TWO = ethers.BigNumber.from(2);
+const WAD = ethers.utils.parseUnits('1', 18);
 
 /**
  * get the base qty expected to output (assuming no slippage) based on the quoteTokenQty
@@ -64,11 +67,130 @@ export const getQuoteTokenQtyFromBaseTokenQty = (baseTokenQty, fee, internalBala
 
 /**
  *
+ * @param {ethers.BigNumber} lpTokenQty
+ * @param {ethers.BigNumber} baseTokenReserveQty α baseToken.balanceOf(exchange)
+ * @param {ethers.BigNumber} quoteTokenReserveQty β quoteToken.balanceOf(exchange)
+ * @param {ethers.BigNumber} totalLPTokenSupply exchange.totalSupply();
+ * @returns {object} { baseTokenQty: ethers.BigNumber, quoteTokenQty: ethers.BigNumber }
+ */
+export const getTokenQtysFromLPTokenQty = (
+  lpTokenQty,
+  baseTokenReserveQty,
+  quoteTokenReserveQty,
+  totalLPTokenSupply,
+) => {
+  const lpRatio = wDiv(lpTokenQty, totalLPTokenSupply);
+  const baseTokenQty = baseTokenReserveQty.mul(lpRatio).div(WAD);
+  const quoteTokenQty = quoteTokenReserveQty.mul(lpRatio).div(WAD);
+
+  const tokenQtys = {
+    baseTokenQty,
+    quoteTokenQty,
+  };
+
+  return tokenQtys;
+};
+
+export const getLPTokenQtyFromTokenQtys = (
+  baseTokenQty,
+  quoteTokenQty,
+  baseTokenReserveQty,
+  totalLPTokenSupply,
+  internalBalances,
+) => {
+  if (totalLPTokenSupply.eq(0)) {
+    // TODO: do we want to handle this case?
+    // return squareRoot(baseTokenQty.mul(quoteTokenQty)).sub(MIN_LIQ);
+    throw new Error('No existing LP Tokens');
+  }
+  const lpFeeTokensToBeMinted = calculateLiquidityTokenFees(totalLPTokenSupply, internalBalances);
+  const totalLPTokenSupplyWFees = totalLPTokenSupply.add(lpFeeTokensToBeMinted);
+  if (!isSufficientDecayPresent(baseTokenReserveQty, internalBalances)) {
+    // no decay is present
+    const quoteTokenQtyToConsume = calculateQuoteTokenQtyToUse(
+      baseTokenQty,
+      quoteTokenQty,
+      internalBalances,
+    );
+    return calculateLiquidityTokenQtyForDoubleAssetEntry(
+      totalLPTokenSupplyWFees,
+      quoteTokenQtyToConsume,
+      internalBalances.quoteTokenReserveQty,
+    );
+  }
+
+  let lpTokensGenerated;
+  let remainingQuoteTokenQty = ethers.BigNumber.from(quoteTokenQty);
+  let remainingBaseTokenQty = ethers.BigNumber.from(baseTokenQty);
+  let updatedInternalBalances;
+
+  // decay is present and needs to be handled first
+  if (baseTokenReserveQty.gt(internalBalances.baseTokenReserveQty)) {
+    // base token decay present, user must first add quote tokens
+    const quoteTokenValues = calculateAddQuoteTokenLiquidityQuantities(
+      quoteTokenQty,
+      baseTokenReserveQty,
+      totalLPTokenSupply,
+      internalBalances,
+    );
+    remainingQuoteTokenQty = remainingQuoteTokenQty.sub(quoteTokenValues.quoteTokenQtyUsed);
+    lpTokensGenerated = quoteTokenValues.lpTokenQty;
+    updatedInternalBalances = quoteTokenValues.updatedInternalBalances;
+  } else {
+    // quote token decay present user must first add base tokens
+    const baseTokenValues = calculateAddBaseTokenLiquidityQuantities(
+      baseTokenQty,
+      baseTokenReserveQty,
+      totalLPTokenSupply,
+      internalBalances,
+    );
+    remainingBaseTokenQty = remainingBaseTokenQty.sub(baseTokenValues.baseTokenQtyUsed);
+    lpTokensGenerated = baseTokenValues.lpTokenQty;
+    updatedInternalBalances = internalBalances;
+  }
+
+  // User has now offset some amount of decay, check if they still have left over
+  // qty to be consumed
+  if (remainingQuoteTokenQty.gt(ZERO) && remainingBaseTokenQty.gt(ZERO)) {
+    const updatedTotalSupplyOfLPTokens = totalLPTokenSupplyWFees.add(lpTokensGenerated);
+    const remQuoteTokenQtyToConsume = calculateQuoteTokenQtyToUse(
+      remainingBaseTokenQty,
+      remainingQuoteTokenQty,
+      updatedInternalBalances,
+    );
+    lpTokensGenerated = lpTokensGenerated.add(
+      calculateLiquidityTokenQtyForDoubleAssetEntry(
+        updatedTotalSupplyOfLPTokens,
+        remQuoteTokenQtyToConsume,
+        updatedInternalBalances.quoteTokenReserveQty,
+      ),
+    );
+  }
+  return lpTokensGenerated;
+};
+
+const calculateQuoteTokenQtyToUse = (baseTokenQty, quoteTokenQty, internalBalances) => {
+  const requiredQuoteTokenQty = calculateQty(
+    baseTokenQty,
+    internalBalances.baseTokenReserveQty,
+    internalBalances.quoteTokenReserveQty,
+  );
+
+  if (requiredQuoteTokenQty.lte(quoteTokenQty)) {
+    // consuming all of the baseTokenQty works, leaving none or some quoteTokenQty.
+    return requiredQuoteTokenQty;
+  }
+  // we cannot consume all of their baseTokenQty, so instead, use all of the quoteTokenQty.
+  return quoteTokenQty;
+};
+
+/**
+ *
  * @param {ethers.BigNumber} tokenASwapQty
  * @param {ethers.BigNumber} tokenAReserveQty
  * @param {ethers.BigNumber} tokenBReserveQty
  * @param {ethers.BigNumber} fee fee amount in basis points
- * @returns token qty
+ * @returns ethers.BigNumber token qty
  */
 export const calculateQtyToReturnAfterFees = (
   tokenASwapQty,
@@ -85,6 +207,161 @@ export const calculateQtyToReturnAfterFees = (
 };
 
 /**
+ * Given tokenA, computes the needed amount of tokenB when
+ * adding liquidity when nod decay is present.
+ * @param {} tokenAQty
+ * @param {*} tokenAReserveQty
+ * @param {*} tokenBReserveQty
+ * @returns
+ */
+const calculateQty = (tokenAQty, tokenAReserveQty, tokenBReserveQty) =>
+  tokenAQty.mul(tokenBReserveQty).div(tokenAReserveQty);
+
+/**
+ * Calculates the amount of LP tokens that have not yet been minted (but need to be) to the fee
+ * address.
+ * @param {Cal} totalLPTokenSupply
+ * @param {*} internalBalances
+ * @returns lpTokenQty to be minted to the fee address on the next liquidity event.
+ */
+const calculateLiquidityTokenFees = (totalLPTokenSupply, internalBalances) => {
+  const rootK = squareRoot(
+    internalBalances.baseTokenReserveQty.mul(internalBalances.quoteTokenReserveQty),
+  );
+  const rootKLast = squareRoot(internalBalances.kLast);
+  if (rootK.gt(rootKLast)) {
+    return totalLPTokenSupply.mul(rootK.sub(rootKLast)).div(rootK.mul(2));
+  }
+  return ZERO;
+};
+
+/**
+ * Determines is sufficient decay is present in the exchange to warrant a user to need to
+ * remove decay prior to adding liquidity to both sides
+ * @param {} baseTokenReserveQty
+ * @param {*} internalBalances
+ * @returns boolean
+ */
+const isSufficientDecayPresent = (baseTokenReserveQty, internalBalances) => {
+  const baseTokenReserveDifference = baseTokenReserveQty
+    .sub(internalBalances.baseTokenReserveQty)
+    .mul(WAD)
+    .abs();
+  const internalBalanceRatio = wDiv(
+    internalBalances.baseTokenReserveQty,
+    internalBalances.quoteTokenReserveQty,
+  );
+  return wDiv(baseTokenReserveDifference, internalBalanceRatio).gte(WAD);
+};
+
+const calculateLiquidityTokenQtyForDoubleAssetEntry = (
+  totalLPTokenSupply,
+  quoteTokenQty,
+  quoteTokenReserveQty,
+) => quoteTokenQty.mul(totalLPTokenSupply).div(quoteTokenReserveQty);
+
+const calculateAddBaseTokenLiquidityQuantities = (
+  baseTokenQty,
+  baseTokenReserveQty,
+  totalSupplyOfLP,
+  internalBalances,
+) => {
+  const maxBaseTokenQty = internalBalances.baseTokenReserveQty.sub(baseTokenReserveQty);
+
+  let baseTokenQtyUsed;
+  if (baseTokenQty.gt(maxBaseTokenQty)) {
+    baseTokenQtyUsed = maxBaseTokenQty;
+  } else {
+    baseTokenQtyUsed = baseTokenQty;
+  }
+
+  const lpTokenQty = calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
+    baseTokenReserveQty,
+    totalSupplyOfLP,
+    baseTokenQtyUsed,
+    internalBalances.baseTokenReserveQty,
+  );
+  // note: we do NOT update internal balances here! See solidity for why.
+  return {
+    baseTokenQtyUsed,
+    lpTokenQty,
+  };
+};
+
+const calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay = (
+  baseTokenReserveQty,
+  totalLPTokenSupply,
+  tokenQtyAToAdd,
+  internalTokenAReserveQty,
+) => {
+  const denominator = internalTokenAReserveQty.add(baseTokenReserveQty).add(tokenQtyAToAdd);
+  const gamma = wDiv(tokenQtyAToAdd, denominator);
+  return wDiv(wMul(totalLPTokenSupply.mul(WAD), gamma), WAD.sub(gamma)).div(WAD);
+};
+
+const calculateAddQuoteTokenLiquidityQuantities = (
+  quoteTokenQty,
+  baseTokenReserveQty,
+  totalSupplyOfLiquidityTokens,
+  internalBalances,
+) => {
+  const baseTokenDecay = baseTokenReserveQty.sub(internalBalances.baseTokenReserveQty);
+
+  // omega - X/Y
+  const internalBaseTokenToQuoteTokenRatio = wDiv(
+    internalBalances.baseTokenReserveQty,
+    internalBalances.quoteTokenReserveQty,
+  );
+
+  // alphaDecay / omega (A/B)
+  const maxQuoteTokenQty = wDiv(baseTokenDecay, internalBaseTokenToQuoteTokenRatio);
+
+  // deltaBeta
+  let quoteTokenQtyUsed;
+  if (quoteTokenQty.gt(maxQuoteTokenQty)) {
+    quoteTokenQtyUsed = maxQuoteTokenQty;
+  } else {
+    quoteTokenQtyUsed = quoteTokenQty;
+  }
+  const baseTokenQtyDecayChange = quoteTokenQty.mul(internalBaseTokenToQuoteTokenRatio).div(WAD);
+
+  // x += alphaDecayChange
+  // y += deltaBeta
+  const updatedInternalBalances = {};
+  updatedInternalBalances.baseTokenReserveQty =
+    internalBalances.baseTokenReserveQty.add(baseTokenQtyDecayChange);
+  updatedInternalBalances.quoteTokenReserveQty =
+    internalBalances.quoteTokenReserveQty.add(quoteTokenQtyUsed);
+
+  const lpTokenQty = calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay(
+    baseTokenReserveQty,
+    totalSupplyOfLiquidityTokens,
+    quoteTokenQtyUsed,
+    updatedInternalBalances.quoteTokenReserveQty,
+    internalBaseTokenToQuoteTokenRatio,
+  );
+
+  return {
+    quoteTokenQtyUsed,
+    updatedInternalBalances,
+    lpTokenQty,
+  };
+};
+
+const calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay = (
+  baseTokenReserveQty,
+  totalLPTokenSupply,
+  tokenAQty,
+  internalTokenAReserveQty,
+  internalBaseTokenToQuoteTokenRatio,
+) => {
+  const ratio = wDiv(baseTokenReserveQty, internalBaseTokenToQuoteTokenRatio);
+  const denominator = ratio.add(internalTokenAReserveQty);
+  const gamma = wDiv(tokenAQty, denominator);
+  return wDiv(wMul(totalLPTokenSupply.mul(WAD), gamma), WAD.sub(gamma)).div(WAD);
+};
+
+/**
  * returns a / b in the form of a WAD integer (18 decimals of precision)
  * NOTE: this rounds to the nearest integer (up or down). For example .666666 would end up
  * rounding to .66667.
@@ -94,9 +371,33 @@ export const calculateQtyToReturnAfterFees = (
  */
 const wDiv = (a, b) => a.mul(WAD).add(b.div(2)).div(b);
 
+/**
+ *
+ * @param {*} a
+ * @param {*} b
+ * @returns
+ */
+const wMul = (a, b) => a.mul(b).add(WAD.div(2)).div(WAD);
+
+/**
+ *
+ * @param {ethers.BigNumber} x
+ * @returns
+ */
+const squareRoot = (x) => {
+  let z = x.add(ONE).div(TWO);
+  let y = x;
+  while (z.sub(y).isNegative()) {
+    y = z;
+    z = x.div(z).add(z).div(TWO);
+  }
+  return y;
+};
+
 export default {
   BASIS_POINTS,
   calculateQtyToReturnAfterFees,
   getBaseTokenQtyFromQuoteTokenQty,
   getQuoteTokenQtyFromBaseTokenQty,
+  getTokenQtysFromLPTokenQty,
 };
