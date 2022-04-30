@@ -18,6 +18,7 @@ import {
   getQuoteTokenQtyFromBaseTokenQty,
   getTokenQtysFromLPTokenQty,
 } from '../utils/mathLib2.mjs';
+import { calculateInputAmountFromOutputAmount } from '../utils/mathLib.mjs';
 
 const prefix = 'Exchange';
 const BASIS_POINTS = 10000;
@@ -553,6 +554,44 @@ export default class Exchange extends ERC20 {
 
   // CALCULATIONS
 
+  async calculateInputAmountFromOutputAmount(
+    outputTokenAmountBN,
+    outputTokenAddress,
+    slippagePercent,
+  ) {
+    const outputTokenAddressLowerCase = outputTokenAddress.toLowerCase();
+    const slippagePercentBN = toBigNumber(slippagePercent);
+    const [liquidityFeeInBasisPointsBN, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.abi, this.address, 'TOTAL_LIQUIDITY_FEE'),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+    let inputTokenReserveQty;
+    let outputTokenReserveQty;
+    let outputDecimals;
+    let inputDecimals;
+
+    if (outputTokenAddressLowerCase === this._baseTokenAddress) {
+      inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
+      outputTokenReserveQty = internalBalances.baseTokenReserveQty;
+      outputDecimals = this.baseToken.decimals;
+      inputDecimals = this.quoteToken.decimals;
+    } else {
+      inputTokenReserveQty = internalBalances.baseTokenReserveQty;
+      outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
+      outputDecimals = this.quoteToken.decimals;
+      inputDecimals = this.baseToken.decimals;
+    }
+
+    const inputAmountFromOutputAmount = calculateInputAmountFromOutputAmount(
+      outputTokenAmountBN,
+      toBigNumber(inputTokenReserveQty, inputDecimals),
+      toBigNumber(outputTokenReserveQty, outputDecimals),
+      slippagePercentBN,
+      liquidityFeeInBasisPointsBN,
+    );
+    return inputAmountFromOutputAmount;
+  }
+
   async getAddLiquidityBaseTokenQtyFromQuoteTokenQty(quoteTokenQty) {
     const quoteTokenQtyBN = this.toBigNumber(quoteTokenQty);
     validateIsBigNumber(quoteTokenQtyBN, { prefix });
@@ -722,34 +761,6 @@ export default class Exchange extends ERC20 {
     const liquidityFeeInBasisPoints = await this.liquidityFee;
 
     return calculateFees(swapAmount, liquidityFeeInBasisPoints);
-  }
-
-  async calculateInputAmountFromOutputAmount(outputAmount, outputTokenAddress, slippagePercent) {
-    const outputTokenAddressLowerCase = outputTokenAddress.toLowerCase();
-    const outputTokenAmountBN = toBigNumber(outputAmount);
-    const slippagePercentBN = toBigNumber(slippagePercent);
-    const liquidityFeeInBasisPointsBN = toBigNumber(await this.liquidityFee);
-
-    let inputTokenReserveQty;
-    let outputTokenReserveQty;
-
-    const internalBalances = await this.contract.internalBalances();
-
-    if (outputTokenAddressLowerCase === this.baseTokenAddress.toLowerCase()) {
-      inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-      outputTokenReserveQty = internalBalances.baseTokenReserveQty;
-    } else {
-      inputTokenReserveQty = internalBalances.baseTokenReserveQty;
-      outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-    }
-
-    return calculateInputAmountFromOutputAmount(
-      outputTokenAmountBN,
-      inputTokenReserveQty,
-      outputTokenReserveQty,
-      slippagePercentBN,
-      liquidityFeeInBasisPointsBN,
-    );
   }
 
   async calculateLPTokenAmount(quoteTokenAmount, baseTokenAmount, slippage) {
