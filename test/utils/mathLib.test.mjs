@@ -1,800 +1,509 @@
 /* eslint import/extensions: 0 */
 import { expect } from 'chai';
-import BigNumber from 'bignumber.js';
+import { ethers } from 'ethers';
 import {
   BASIS_POINTS,
-  calculateExchangeRate,
-  calculateFees,
-  calculateInputAmountFromOutputAmount,
-  calculateLiquidityTokenQtyForDoubleAssetEntry,
-  calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay,
-  calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay,
-  calculateOutputAmountLessFees,
-  calculateQty,
   calculateQtyToReturnAfterFees,
-  calculateTokenAmountsFromLPTokens,
-  INSUFFICIENT_LIQUIDITY,
-  INSUFFICIENT_QTY,
-  NAN_ERROR,
-  NEGATIVE_INPUT,
+  getAddLiquidityBaseTokenQtyFromQuoteTokenQty,
+  getAddLiquidityQuoteTokenQtyFromBaseTokenQty,
+  getBaseTokenQtyFromQuoteTokenQty,
+  getLPTokenQtyFromTokenQtys,
+  getTokenImbalanceQtys,
+  WAD,
 } from '../../src/utils/mathLib.mjs';
 
-const ZERO = BigNumber(0);
-const { ROUND_DOWN } = BigNumber;
-
 describe('MathLib', async () => {
-  describe('calculateQty', () => {
-    it('Should return the correct calculateQty', async () => {
-      expect(calculateQty(500, 100, 5000).toNumber()).to.equal(25000);
-      expect(calculateQty(100, 500, 5000).toNumber()).to.equal(1000);
-    });
-
-    it('Should revert if any value is 0', async () => {
-      expect(() => calculateQty(0, 100, 500)).to.throw(INSUFFICIENT_QTY);
-      expect(() => calculateQty(500, 0, 1000)).to.throw(INSUFFICIENT_LIQUIDITY);
-      expect(() => calculateQty(500, 100, 0)).to.throw(INSUFFICIENT_LIQUIDITY);
-    });
-  });
-
   describe('calculateQtyToReturnAfterFees', () => {
-    it('Should return the correct values', async () => {
-      const tokenSwapQty = BigNumber(1);
-      const tokenAReserveQtyBeforeTrade = BigNumber(3170);
-      const tokenBReserveQtyBeforeTrade = BigNumber(3175.79385113);
-      const feeInBasisPoints = BigNumber(50);
-
-      const differenceInBP = BASIS_POINTS.minus(feeInBasisPoints);
-      const tokenASwapQtyLessFee = tokenSwapQty.multipliedBy(differenceInBP).dp(18, ROUND_DOWN);
-
-      const numerator = tokenASwapQtyLessFee
-        .multipliedBy(tokenBReserveQtyBeforeTrade)
-        .dp(18, ROUND_DOWN);
-      const denominator = tokenAReserveQtyBeforeTrade
-        .multipliedBy(BASIS_POINTS)
-        .dp(18, ROUND_DOWN)
-        .plus(tokenASwapQtyLessFee);
-
-      // what the sdk should be doing
-      const qtyToReturn = numerator.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      const SdkCalculatedQtyToReturnAfterFees = calculateQtyToReturnAfterFees(
-        1,
-        3170,
-        3175.79385113,
-        50,
+    it('works with 2 - 18 decimal tokens', () => {
+      const tokenASwapQty = ethers.utils.parseUnits('100', 18);
+      const tokenAReserveQty = ethers.utils.parseUnits('150000000', 18);
+      const tokenBReserveQty = ethers.utils.parseUnits('75000000', 18);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const output = calculateQtyToReturnAfterFees(
+        tokenASwapQty,
+        tokenAReserveQty,
+        tokenBReserveQty,
+        fee,
       );
-
-      expect(SdkCalculatedQtyToReturnAfterFees.toString()).to.equal(qtyToReturn.toString());
+      expect(output.toString()).to.equal('49749966999188557204');
     });
 
-    it('Should return the correct value when fees are zero', async () => {
-      const tokenSwapQty = BigNumber(1);
-      const tokenAReserveQtyBeforeTrade = BigNumber(970.42042042042042042042);
-      const tokenBReserveQtyBeforeTrade = BigNumber(3175.696969696969696969696);
-      const feeInBasisPoints = BigNumber(0);
+    it('works with a 18 decimal token and a 6 decimal token', () => {
+      const tokenASwapQty = ethers.utils.parseUnits('100', 18);
+      const tokenAReserveQty = ethers.utils.parseUnits('150000000', 18);
+      const tokenBReserveQty = ethers.utils.parseUnits('75000000', 6);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const output = calculateQtyToReturnAfterFees(
+        tokenASwapQty,
+        tokenAReserveQty,
+        tokenBReserveQty,
+        fee,
+      );
+      expect(output.toString()).to.equal('49749966');
+    });
 
-      const differenceInBP = BASIS_POINTS.minus(feeInBasisPoints);
-      const tokenASwapQtyLessFee = tokenSwapQty.multipliedBy(differenceInBP).dp(18, ROUND_DOWN);
+    it('works with a 9 decimal token and a 6 decimal token', () => {
+      const tokenASwapQty = ethers.utils.parseUnits('100', 9);
+      const tokenAReserveQty = ethers.utils.parseUnits('150000000', 9);
+      const tokenBReserveQty = ethers.utils.parseUnits('75000000', 6);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const output = calculateQtyToReturnAfterFees(
+        tokenASwapQty,
+        tokenAReserveQty,
+        tokenBReserveQty,
+        fee,
+      );
+      expect(output.toString()).to.equal('49749966');
+    });
 
-      const numerator = tokenASwapQtyLessFee
-        .multipliedBy(tokenBReserveQtyBeforeTrade)
-        .dp(18, ROUND_DOWN);
-      const denominator = tokenAReserveQtyBeforeTrade
-        .multipliedBy(BASIS_POINTS)
-        .dp(18, ROUND_DOWN)
-        .plus(tokenASwapQtyLessFee);
+    it('Properly extracts fee amounts', () => {
+      const tokenASwapQty = ethers.utils.parseUnits('100', 18);
+      const tokenAReserveQty = ethers.utils.parseUnits('150000000', 18);
+      const tokenBReserveQty = ethers.utils.parseUnits('75000000', 18);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const outputWithFee = calculateQtyToReturnAfterFees(
+        tokenASwapQty,
+        tokenAReserveQty,
+        tokenBReserveQty,
+        fee,
+      );
+      expect(outputWithFee.toString()).to.equal('49749966999188557204');
 
-      // what the sdk should be doing
-      const qtyToReturn = numerator.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      const SdkCalculatedQtyToReturnAfterFees = calculateQtyToReturnAfterFees(
-        1,
-        970.42042042042042042,
-        3175.696969696969696969,
-        0,
+      const outputWithOutFee = calculateQtyToReturnAfterFees(
+        tokenASwapQty,
+        tokenAReserveQty,
+        tokenBReserveQty,
+        ethers.BigNumber.from(0),
       );
 
-      expect(SdkCalculatedQtyToReturnAfterFees.toString()).to.equal(qtyToReturn.toString());
-    });
-  });
-
-  describe('calculateLiquiditytokenQtyForDoubleAssetEntry', () => {
-    it('Should return the correct qty of liquidity tokens', async () => {
-      const totalSupplyOfLiquidityTokens = 50;
-      const quoteTokenBalance = 50;
-      const quoteTokenQtyToAdd = 15;
-
-      expect(
-        calculateLiquidityTokenQtyForDoubleAssetEntry(
-          totalSupplyOfLiquidityTokens,
-          quoteTokenQtyToAdd,
-          quoteTokenBalance,
-        ).toNumber(),
-      ).to.equal(15);
+      const diff = outputWithOutFee.sub(outputWithFee);
+      const diffInBP = diff.mul(BASIS_POINTS).div(outputWithOutFee);
+      expect(diffInBP.toString()).to.equal('49');
     });
   });
 
-  describe('calculateLiquidityTokenQtyForSingleAssetEntry', () => {
-    it('Should return the correct qty of liquidity tokens with a rebase down', async () => {
-      // Scenario: We have 1000:5000 A:B or X:Y, a rebase down occurs (of 50 tokens)
-      // and a user needs to 50 tokens in order to remove the decay
-      const tokenAQty = 950;
-      const tokenAQtyBN = BigNumber(tokenAQty);
-
-      const totalSupplyOfLiquidityTokens = 5000;
-      const totalSupplyOfLiquidityTokensBN = BigNumber(totalSupplyOfLiquidityTokens);
-
-      const tokenAQtyToAdd = 50;
-      const tokenAQtyToAddBN = BigNumber(tokenAQtyToAdd);
-      // 950 + 50 brining us back to original state.
-      const tokenAInternalReserveQtyAfterTransaction = 1000;
-      const tokenAInternalReserveQtyAfterTransactionBN = BigNumber(
-        tokenAInternalReserveQtyAfterTransaction,
-      );
-
-      const denominator = tokenAInternalReserveQtyAfterTransactionBN
-        .plus(tokenAQtyBN)
-        .plus(tokenAQtyToAddBN);
-      const gamma = tokenAQtyToAddBN.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      const liquidityTokensNumerator = totalSupplyOfLiquidityTokensBN
-        .multipliedBy(gamma)
-        .dp(18, ROUND_DOWN);
-      const liquidityTokensNumeratorDenominator = BigNumber(1).minus(gamma);
-      const expectedLiquidityTokens = liquidityTokensNumerator
-        .dividedBy(liquidityTokensNumeratorDenominator)
-        .dp(18, ROUND_DOWN);
-
-      // passing in normal decimal as SDK is expecting it like that
-      const sdkCalculatedLiquidityTokens =
-        calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
-          tokenAQty,
-          totalSupplyOfLiquidityTokens,
-          tokenAQtyToAdd,
-          tokenAInternalReserveQtyAfterTransaction,
-        );
-
-      expect(sdkCalculatedLiquidityTokens.toString()).to.equal(expectedLiquidityTokens.toString());
-
-      // if we supply half, and remove half the decay, we should get roughly 1/2 the tokens
-      const tokenAQtyToAdd2 = 25;
-      const tokenAQtyToAdd2BN = BigNumber(25);
-      // 950 + 25
-      const tokenAInternalReserveQtyAfterTransaction2 = 975;
-      const tokenAInternalReserveQtyAfterTransaction2BN = BigNumber(975);
-
-      const denominator2 = tokenAInternalReserveQtyAfterTransaction2BN
-        .plus(tokenAQtyBN)
-        .plus(tokenAQtyToAdd2BN);
-
-      const gamma2 = tokenAQtyToAdd2BN.dividedBy(denominator2).dp(18, ROUND_DOWN);
-
-      const liquidityTokensNumerator2 = totalSupplyOfLiquidityTokensBN
-        .multipliedBy(gamma2)
-        .dp(18, ROUND_DOWN);
-      const liquidityTokensNumeratorDenominator2 = BigNumber(1).minus(gamma2);
-
-      const expectedLiquidityTokens2 = liquidityTokensNumerator2
-        .dividedBy(liquidityTokensNumeratorDenominator2)
-        .dp(18, ROUND_DOWN);
-
-      // passing in normal decimal as SDK is expecting it like that
-      const sdkCalculatedLiquidityTokens2 =
-        calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
-          tokenAQty,
-          totalSupplyOfLiquidityTokens,
-          tokenAQtyToAdd2,
-          tokenAInternalReserveQtyAfterTransaction2,
-        );
-
-      expect(sdkCalculatedLiquidityTokens2.toString()).to.equal(
-        expectedLiquidityTokens2.toString(),
-      );
-    });
-
-    it('Should return the correct qty of liquidity tokens with a rebase down', async () => {
-      // Scenario: We have 10000:10000 A:B or X:Y, a rebase down occurs (of 5000 tokens)
-      // and a user puts in 5000 tokens in order to remove the decay
-      const tokenAQty = 5000;
-      const tokenAQtyBN = BigNumber(tokenAQty);
-
-      const totalSupplyOfLiquidityTokens = 10000;
-      const totalSupplyOfLiquidityTokensBN = BigNumber(totalSupplyOfLiquidityTokens);
-
-      const tokenAQtyToAdd = 5000;
-      const tokenAQtyToAddBN = BigNumber(tokenAQtyToAdd);
-      // 5000 + 5000 brining us back to original state.
-      const tokenAInternalReserveQtyAfterTransaction = 10000;
-      const tokenAInternalReserveQtyAfterTransactionBN = BigNumber(
-        tokenAInternalReserveQtyAfterTransaction,
-      );
-
-      const denominator = tokenAInternalReserveQtyAfterTransactionBN
-        .plus(tokenAQtyBN)
-        .plus(tokenAQtyToAddBN);
-      const gamma = tokenAQtyToAddBN.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      const liquidityTokensNumerator = totalSupplyOfLiquidityTokensBN
-        .multipliedBy(gamma)
-        .dp(18, ROUND_DOWN);
-      const liquidityTokensNumeratorDenominator = BigNumber(1).minus(gamma);
-      const expectedLiquidityTokens = liquidityTokensNumerator
-        .dividedBy(liquidityTokensNumeratorDenominator)
-        .dp(18, ROUND_DOWN);
-
-      // passing in normal decimal as SDK is expecting it like that
-      const sdkCalculatedLiquidityTokens =
-        calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
-          tokenAQty,
-          totalSupplyOfLiquidityTokens,
-          tokenAQtyToAdd,
-          tokenAInternalReserveQtyAfterTransaction,
-        );
-
-      expect(sdkCalculatedLiquidityTokens.toString()).to.equal(expectedLiquidityTokens.toString());
-
-      // if we supply half, and remove half the decay, we should get roughly 1/2 the tokens
-      const tokenAQtyToAdd2 = 2500;
-      const tokenAQtyToAdd2BN = BigNumber(tokenAQtyToAdd2);
-      // 5000 + 2500
-      const tokenAInternalReserveQtyAfterTransaction2 = 7500;
-      const tokenAInternalReserveQtyAfterTransaction2BN = BigNumber(
-        tokenAInternalReserveQtyAfterTransaction2,
-      );
-
-      const denominator2 = tokenAInternalReserveQtyAfterTransaction2BN
-        .plus(tokenAQtyBN)
-        .plus(tokenAQtyToAdd2BN);
-
-      const gamma2 = tokenAQtyToAdd2BN.dividedBy(denominator2).dp(18, ROUND_DOWN);
-
-      const liquidityTokensNumerator2 = totalSupplyOfLiquidityTokensBN
-        .multipliedBy(gamma2)
-        .dp(18, ROUND_DOWN);
-      const liquidityTokensNumeratorDenominator2 = BigNumber(1).minus(gamma2);
-
-      const expectedLiquidityTokens2 = liquidityTokensNumerator2
-        .dividedBy(liquidityTokensNumeratorDenominator2)
-        .dp(18, ROUND_DOWN);
-
-      // passing in normal decimal as SDK is expecting it like that
-      const sdkCalculatedLiquidityTokens2 =
-        calculateLiquidityTokenQtyForSingleAssetEntryWithQuoteTokenDecay(
-          tokenAQty,
-          totalSupplyOfLiquidityTokens,
-          tokenAQtyToAdd2,
-          tokenAInternalReserveQtyAfterTransaction2,
-        );
-
-      expect(sdkCalculatedLiquidityTokens2.toString()).to.equal(
-        expectedLiquidityTokens2.toString(),
-      );
-    });
-
-    it('Should return the correct qty of liquidity tokens with a rebase up', async () => {
-      // Scenario: We have 1000:5000 A:B or X:Y, a rebase up occurs (of 500 tokens)
-      // and a user needs to add 2500 quote tokens to remove the base decay
-
-      // omega - X/Y
-      const omega = 1000 / 5000;
-      const omegaBN = BigNumber(omega);
-
-      // current Alpha - post rebase
-      const baseTokenReserveBalance = 1500;
-      const baseTokenReserveBalanceBN = BigNumber(1500);
-
-      const totalSupplyOfLiquidityTokens = 5000;
-      const totalSupplyOfLiquidityTokensBN = BigNumber(5000);
-
-      const tokenQtyAToAdd = 2500;
-      const tokenQtyAToAddBN = BigNumber(2500);
-
-      const internalTokenAReserveQty = 7500; // 5000 + 2500 to offset rebase up
-      const internalTokenAReserveQtyBN = BigNumber(internalTokenAReserveQty);
-
-      const ratio = baseTokenReserveBalanceBN.dividedBy(omegaBN).dp(18, ROUND_DOWN);
-      const denominator = ratio.plus(internalTokenAReserveQtyBN);
-      const gamma = tokenQtyAToAddBN.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      const expectedLiquidityTokenQty = totalSupplyOfLiquidityTokensBN
-        .multipliedBy(gamma)
-        .dividedBy(BigNumber(1).minus(gamma))
-        .dp(18, ROUND_DOWN);
-      // passing in decimal as sdk expects it in decimal form
-      const sdkCalculatedLiquidityTokens =
-        calculateLiquidityTokenQtyForSingleAssetEntryWithBaseTokenDecay(
-          baseTokenReserveBalance,
-          totalSupplyOfLiquidityTokens,
-          tokenQtyAToAdd,
-          internalTokenAReserveQty,
-          omega,
-        );
-      expect(sdkCalculatedLiquidityTokens.toString()).to.equal(
-        expectedLiquidityTokenQty.toString(),
-      );
-    });
-  });
-
-  describe('calculateExchangeRate', () => {
-    it('Should calculate the exchange rate correctly', async () => {
-      const baseTokenReserveQty1 = BigNumber('10.123456789123456789');
-      const quoteTokenReserveQty1 = BigNumber('12.123456789123456789');
-
-      const calculatedExchangeRate1 = baseTokenReserveQty1.dividedBy(quoteTokenReserveQty1);
-      expect(
-        calculateExchangeRate(baseTokenReserveQty1, quoteTokenReserveQty1).toNumber(),
-      ).to.equal(calculatedExchangeRate1.toNumber());
-
-      const baseTokenReserveQty2 = BigNumber('10');
-      const quoteTokenReserveQty2 = BigNumber('12.123456789123456789');
-
-      const calculatedExchangeRate2 = baseTokenReserveQty2.dividedBy(quoteTokenReserveQty2);
-      expect(
-        calculateExchangeRate(baseTokenReserveQty2, quoteTokenReserveQty2).toNumber(),
-      ).to.equal(calculatedExchangeRate2.toNumber());
-    });
-
-    it('Should return an error when incorrect values are provided', async () => {
-      const quoteTokenReserveQty1 = BigNumber('12.123456789123456789');
-      const negativeQuoteTokenReserveQty = BigNumber('-12.123456789123456789');
-
-      // ZERO case
-      expect(() => calculateExchangeRate(ZERO, quoteTokenReserveQty1)).to.throw(
-        INSUFFICIENT_LIQUIDITY,
-      );
-      expect(() => calculateExchangeRate(quoteTokenReserveQty1, ZERO)).to.throw(
-        INSUFFICIENT_LIQUIDITY,
-      );
-
-      // Negative inputs provided
-      expect(() =>
-        calculateExchangeRate(quoteTokenReserveQty1, negativeQuoteTokenReserveQty),
-      ).to.throw(NEGATIVE_INPUT);
-
-      // Nan cases
-      expect(() => calculateExchangeRate(null, quoteTokenReserveQty1)).to.throw(NAN_ERROR);
-      expect(() => calculateExchangeRate(undefined, quoteTokenReserveQty1)).to.throw(NAN_ERROR);
-    });
-  });
-
-  describe('calculateOutputAmountLessFees', () => {
-    it('Should calculateOutputAmount correctly, accounting for fees and  slippage', async () => {
-      // slippage and fees
-      // 5 percent slippage
-      const slippage = BigNumber(5);
-      const tokenSwapQty = BigNumber(1);
-      const tokenAReserveQtyBeforeTrade = BigNumber(3175.696969696969696969696);
-      const tokenBReserveQtyBeforeTrade = BigNumber(315.79385113);
-      const feeInBasisPoints = BigNumber(50);
-
-      const differenceInBP = BASIS_POINTS.minus(feeInBasisPoints);
-      const tokenASwapQtyLessFee = tokenSwapQty.multipliedBy(differenceInBP).dp(18, ROUND_DOWN);
-
-      const numerator = tokenASwapQtyLessFee
-        .multipliedBy(tokenBReserveQtyBeforeTrade)
-        .dp(18, ROUND_DOWN);
-      const denominator = tokenAReserveQtyBeforeTrade
-        .multipliedBy(BASIS_POINTS)
-        .dp(18, ROUND_DOWN)
-        .plus(tokenASwapQtyLessFee);
-
-      // what the sdk should be doing
-      const qtyToReturn = numerator.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      const SdkCalculatedQtyToReturnAfterFees = calculateQtyToReturnAfterFees(
-        1,
-        3175.696969696969696969696,
-        315.79385113,
-        50,
-      );
-
-      expect(SdkCalculatedQtyToReturnAfterFees.toString()).to.equal(qtyToReturn.toString());
-
-      const slippageMultiplier = BigNumber(1).minus(slippage.dividedBy(BigNumber(100)));
-      const tokenBQtyExpectedLessSlippage = qtyToReturn.multipliedBy(slippageMultiplier);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      expect(
-        calculateOutputAmountLessFees(
-          1,
-          3175.696969696969696969696,
-          315.79385113,
-          5,
-          50,
-        ).toString(),
-      ).to.equal(tokenBQtyExpectedLessSlippage.toString());
-    });
-
-    it('Should calculateOutputAmount correctly, accounting for fees and 0 slippage', async () => {
-      // no slippage
-      const slippage = ZERO;
-      const tokenSwapQty = BigNumber(1);
-      const tokenAReserveQtyBeforeTrade = BigNumber(317000);
-      const tokenBReserveQtyBeforeTrade = BigNumber(3175.79385113);
-      const feeInBasisPoints = BigNumber(50);
-
-      const differenceInBP = BASIS_POINTS.minus(feeInBasisPoints);
-      const tokenASwapQtyLessFee = tokenSwapQty.multipliedBy(differenceInBP).dp(18, ROUND_DOWN);
-
-      const numerator = tokenASwapQtyLessFee
-        .multipliedBy(tokenBReserveQtyBeforeTrade)
-        .dp(18, ROUND_DOWN);
-      const denominator = tokenAReserveQtyBeforeTrade
-        .multipliedBy(BASIS_POINTS)
-        .dp(18, ROUND_DOWN)
-        .plus(tokenASwapQtyLessFee);
-
-      // what the sdk should be doing
-      const qtyToReturn = numerator.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      const SdkCalculatedQtyToReturnAfterFees = calculateQtyToReturnAfterFees(
-        1,
-        317000,
-        3175.79385113,
-        50,
-      );
-
-      expect(SdkCalculatedQtyToReturnAfterFees.toString()).to.equal(qtyToReturn.toString());
-
-      const slippageMultiplier = BigNumber(1).minus(slippage.dividedBy(BigNumber(100)));
-      const tokenBQtyExpectedLessSlippage = qtyToReturn.multipliedBy(slippageMultiplier);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      expect(calculateOutputAmountLessFees(1, 317000, 3175.79385113, 0, 50).toString()).to.equal(
-        tokenBQtyExpectedLessSlippage.toString(),
-      );
-    });
-
-    it('Should calculateOutputAmount correctly, accounting for 0 fees and 0 slippage', async () => {
-      // no slippage no fees
-      const slippage = ZERO;
-      const tokenSwapQty = BigNumber(1);
-      const tokenAReserveQtyBeforeTrade = BigNumber(970.42042042042042042042);
-      const tokenBReserveQtyBeforeTrade = BigNumber(3175.696969696969696969696);
-      const feeInBasisPoints = ZERO;
-
-      const differenceInBP = BASIS_POINTS.minus(feeInBasisPoints);
-      const tokenASwapQtyLessFee = tokenSwapQty.multipliedBy(differenceInBP).dp(18, ROUND_DOWN);
-
-      const numerator = tokenASwapQtyLessFee
-        .multipliedBy(tokenBReserveQtyBeforeTrade)
-        .dp(18, ROUND_DOWN);
-      const denominator = tokenAReserveQtyBeforeTrade
-        .multipliedBy(BASIS_POINTS)
-        .dp(18, ROUND_DOWN)
-        .plus(tokenASwapQtyLessFee);
-
-      // what the sdk should be doing
-      const qtyToReturn = numerator.dividedBy(denominator).dp(18, ROUND_DOWN);
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      const SdkCalculatedQtyToReturnAfterFees = calculateQtyToReturnAfterFees(
-        1,
-        970.42042042042042042042,
-        3175.696969696969696969696,
-        0,
-      );
-
-      expect(SdkCalculatedQtyToReturnAfterFees.toString()).to.equal(qtyToReturn.toString());
-
-      const slippageMultiplier = BigNumber(1).minus(slippage.dividedBy(BigNumber(100)));
-      const tokenBQtyExpectedLessSlippage = qtyToReturn.multipliedBy(slippageMultiplier);
-      console.log('after slippage: ', tokenBQtyExpectedLessSlippage.toString());
-
-      // Here passing in normal decimals, sdk will convert to BN for calcs
-      expect(
-        calculateOutputAmountLessFees(
-          1,
-          970.42042042042042042042,
-          3175.696969696969696969696,
-          0,
-          0,
-        ).toString(),
-      ).to.equal(tokenBQtyExpectedLessSlippage.toString());
-    });
-
-    it('Should return an error when incorrect values are provided', async () => {
-      const slippage = 5;
-      const tokenSwapQty = 50;
-      const negativeSwapQty = -50;
-      const feeInBasisPoints = 30;
-      const tokenAReserveQtyBeforeTrade = 100;
-      const tokenBReserveQtyBeforeTrade = 5000;
-
-      // ZERO case
-      expect(() =>
-        calculateOutputAmountLessFees(
-          tokenSwapQty,
-          ZERO,
-          tokenBReserveQtyBeforeTrade,
-          slippage,
-          feeInBasisPoints,
-        ),
-      ).to.throw(INSUFFICIENT_LIQUIDITY);
-
-      expect(() =>
-        calculateOutputAmountLessFees(
-          tokenSwapQty,
-          tokenAReserveQtyBeforeTrade,
-          ZERO,
-          slippage,
-          feeInBasisPoints,
-        ),
-      ).to.throw(INSUFFICIENT_LIQUIDITY);
-
-      // Negative inputs provided
-      expect(() =>
-        calculateOutputAmountLessFees(
-          negativeSwapQty,
-          tokenAReserveQtyBeforeTrade,
-          tokenBReserveQtyBeforeTrade,
-          slippage,
-          feeInBasisPoints,
-        ),
-      ).to.throw(NEGATIVE_INPUT);
-
-      // Nan cases
-      expect(() =>
-        calculateOutputAmountLessFees(
-          null,
-          tokenAReserveQtyBeforeTrade,
-          tokenBReserveQtyBeforeTrade,
-          slippage,
-          feeInBasisPoints,
-        ),
-      ).to.throw(NAN_ERROR);
-
-      expect(() =>
-        calculateOutputAmountLessFees(
-          undefined,
-          tokenAReserveQtyBeforeTrade,
-          tokenBReserveQtyBeforeTrade,
-          slippage,
-          feeInBasisPoints,
-        ),
-      ).to.throw(NAN_ERROR);
-    });
-  });
-
-  describe('calculateTokenAmountsFromLPTokens', () => {
-    it('Should return an error when incorrect values are provided ', async () => {
-      const lpTokenQtyToRedeem = BigNumber(-10);
-      const slippagePercent = BigNumber(2);
-      const baseTokenReserveQty = BigNumber(100);
-      const quoteTokenReserveQty = BigNumber(200);
-      const totalLPTokenSupply = BigNumber(200);
-
-      expect(() =>
-        calculateTokenAmountsFromLPTokens(
-          lpTokenQtyToRedeem,
-          slippagePercent,
-          baseTokenReserveQty,
+  describe('getBaseTokenQtyFromQuoteTokenQty', () => {
+    it('works with 2 - 18 decimal tokens without decay', () => {
+      const quoteTokenQtyToSwap = ethers.utils.parseUnits('100', 18);
+      const quoteTokenReserveQty = ethers.utils.parseUnits('150000000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('75000000', 18);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const output = getBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQtyToSwap,
+        baseTokenReserveQty,
+        fee,
+        {
           quoteTokenReserveQty,
-          totalLPTokenSupply,
-        ),
-      ).to.throw(NEGATIVE_INPUT);
-
-      expect(() =>
-        calculateTokenAmountsFromLPTokens(
-          null,
-          slippagePercent,
           baseTokenReserveQty,
-          quoteTokenReserveQty,
-          totalLPTokenSupply,
-        ),
-      ).to.throw(NAN_ERROR);
-
-      expect(() =>
-        calculateTokenAmountsFromLPTokens(
-          undefined,
-          slippagePercent,
-          baseTokenReserveQty,
-          quoteTokenReserveQty,
-          totalLPTokenSupply,
-        ),
-      ).to.throw(NAN_ERROR);
+        },
+      );
+      expect(output.toString()).to.equal('49749966999188557204');
     });
-    it('Should calculate correct amount of tokens received (without slippage) ', async () => {
-      const lpTokenQtyToRedeem = BigNumber(10);
-      const slippagePercent = ZERO;
-      const baseTokenReserveQty = BigNumber(100);
-      const quoteTokenReserveQty = BigNumber(200);
-      const totalLPTokenSupply = BigNumber(200);
 
-      const answer = {
-        quoteTokenReceived: quoteTokenReserveQty
-          .multipliedBy(lpTokenQtyToRedeem.dividedBy(totalLPTokenSupply))
-          .multipliedBy(BigNumber(1).minus(slippagePercent.dividedBy(BigNumber(100)))),
-        baseTokenReceived: baseTokenReserveQty
-          .multipliedBy(lpTokenQtyToRedeem.dividedBy(totalLPTokenSupply))
-          .multipliedBy(BigNumber(1).minus(slippagePercent.dividedBy(BigNumber(100)))),
+    it('works with 2 - 18 decimal tokens with decay', () => {
+      const quoteTokenQtyToSwap = ethers.utils.parseUnits('100', 18);
+      const quoteTokenReserveQty = ethers.utils.parseUnits('150000000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('75000000', 18);
+      const decayAmount = ethers.utils.parseUnits('50000', 18);
+      const fee = ethers.BigNumber.from(50); // basis points;
+      const output = getBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQtyToSwap,
+        baseTokenReserveQty,
+        fee,
+        {
+          quoteTokenReserveQty,
+          baseTokenReserveQty: baseTokenReserveQty.add(decayAmount),
+        },
+      );
+      expect(output.toString()).to.equal('49783133621839489500');
+    });
+  });
+
+  describe('getLPTokenQtyFromTokenQtys', () => {
+    it('Properly issues LP when base token decay is present and SAE (complete) happens', () => {
+      // internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
+      // we have 1000:5000 base:quote in the pool initially, base token rebases up by 500
+      // quote token required (for complete offset) => 500/(1000/5000) => 2500
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('5000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('1500', 18);
+      const quoteTokenQty = ethers.utils.parseUnits('2500', 18);
+      const baseTokenQty = ethers.BigNumber.from(0);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      expect(calculatedLPTokenGenerated.toString()).to.equal('1000000000000000002400');
+    });
+
+    it('Properly issues LP when base token decay is present and SAE (partial) happens', () => {
+      // internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
+      // we have 1000:5000 base:quote in the pool initially, base token rebases up by 500
+      // quote token required (for complete offset) => 500/(1000/5000) => 2500
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('5000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('1500', 18);
+      const quoteTokenQty = ethers.utils.parseUnits('1250', 18);
+      const baseTokenQty = ethers.BigNumber.from(0);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      expect(calculatedLPTokenGenerated.toString()).to.equal('499999999999999999450');
+    });
+
+    it('Properly issues LP when base token decay is present and SAE + DAE happens', () => {
+      // internalBalances { baseTokenReserveQty, quoteTokenReserveQty }
+      // we have 1000:5000 base:quote in the pool initially, base token rebases up by 500
+      // quote token required (for complete offset) => 500/(1000/5000) => 2500
+      // providing 1000 base and 3500 quote -> 0,2500 for SAE and then 1000,1000 for DAE
+      // total LP = LP(SAE) + LP(DAE)
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('5000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('1500', 18);
+      const quoteTokenQty = ethers.utils.parseUnits('3500', 18);
+      const baseTokenQty = ethers.utils.parseUnits('1000', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+
+      // After SAE,
+      // Pool balances - 1500 base, 7500 quote (Ro outstanding is ~6k (5k initially + ~1k for SAE) )
+      // LP Generated for SAE is ~1k
+      // User has provided additional 1000 quote and 1000 base,for DAE LP gets additional ~800 Ro
+      // Therefore, LP issued is ~1800 for the participant LP
+      expect(calculatedLPTokenGenerated.toString()).to.equal('1800000000000000002720');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE (complete) occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for complete offset) => iOmega*Decay = 1*5k = 5k
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.BigNumber.from(0);
+      const baseTokenQty = ethers.utils.parseUnits('5000', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      console.log('complete SAE', calculatedLPTokenGenerated.toString());
+      expect(calculatedLPTokenGenerated.toString()).to.equal('3333333333333333333333');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE (partial) occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for 50% offset) => iOmega*Decay/2 => 2500
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.BigNumber.from(0);
+      const baseTokenQty = ethers.utils.parseUnits('2500', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      console.log(calculatedLPTokenGenerated.toString());
+      expect(calculatedLPTokenGenerated.toString()).to.equal('1666666666666666664722');
+    });
+
+    it('Properly issues LP when quote token decay is present and SAE + DAE occurs', () => {
+      // we have 10000:10000 base:quote in the pool initially, base token rebases down by 5000
+      // base token required (for complete offset) => iOmega*Decay = 1*5k = 5k
+      // a clearer explanation of this example can be found in ElasticSwapMath.md
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('10000', 18);
+
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+      const totalLPTokenSupply = ethers.utils.parseUnits('10000', 18);
+      const baseTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const quoteTokenQty = ethers.utils.parseUnits('10000', 18);
+      const baseTokenQty = ethers.utils.parseUnits('15000', 18);
+
+      const calculatedLPTokenGenerated = getLPTokenQtyFromTokenQtys(
+        baseTokenQty,
+        quoteTokenQty,
+        baseTokenReserveQty,
+        totalLPTokenSupply,
+        internalBalances,
+      );
+      expect(calculatedLPTokenGenerated.toString()).to.equal('16666666666666666666666');
+    });
+  });
+
+  describe('getAddLiquidityQuoteTokenQtyFromBaseTokenQty', () => {
+    it('should return correct amount of quoteToken qty, when baseDecay is present', () => {
+      // 1000, 5000 -> 1500, 5000 (a rebase up occurs)
+      // quotetokenReqd => alphaDecay * (iOmega) = 2500
+      // if 100 BaseTokenQty -> 2500 quoteTokenQty (for baseDecay) +
+      // with (1500,7500) DAE for 100 BaseTokens(100 *(7500/1500) = 500)
+      // Hence if 100 Base Token for 500 Basetokendecay, quoteToken reqd is 2500 + 500
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
       };
 
-      const expected = calculateTokenAmountsFromLPTokens(
-        lpTokenQtyToRedeem,
-        slippagePercent,
+      const baseTokenReserveQty = ethers.utils.parseUnits('1500', 18);
+      const baseTokenQty = ethers.utils.parseUnits('100', 18);
+      const quoteTokenQty = getAddLiquidityQuoteTokenQtyFromBaseTokenQty(
+        baseTokenQty,
         baseTokenReserveQty,
-        quoteTokenReserveQty,
-        totalLPTokenSupply,
+        internalBalances,
       );
 
-      expect(expected.quoteTokenReceived.toNumber()).to.equal(answer.quoteTokenReceived.toNumber());
-      expect(expected.baseTokenReceived.toNumber()).to.equal(answer.baseTokenReceived.toNumber());
+      expect(quoteTokenQty.toString()).to.equal('3000000000000000000000');
     });
 
-    it('Should calculate correct amount of tokens received (with slippage) ', async () => {
-      const lpTokenQtyToRedeem = BigNumber(10);
-      const slippagePercent = BigNumber(2);
-      const baseTokenReserveQty = BigNumber(100);
-      const quoteTokenReserveQty = BigNumber(200);
-      const totalLPTokenSupply = BigNumber(200);
+    it('should return correct amount of quoteToken qty, when quoteTokenDecay is present', () => {
+      // 1000, 5000 -> 500, 5000 (a rebase down occurs)
+      // baseTokenReqd = 1000-500=500
+      // hence if baseTokenQty <= 500, quoteToken = 0
+      // if baseToken > 500, then DAE of baseTokenQty :: (1000,1000)
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
 
-      const answer = {
-        quoteTokenReceived: quoteTokenReserveQty
-          .multipliedBy(lpTokenQtyToRedeem.dividedBy(totalLPTokenSupply))
-          .multipliedBy(BigNumber(1).minus(slippagePercent.dividedBy(BigNumber(100)))),
-        baseTokenReceived: baseTokenReserveQty
-          .multipliedBy(lpTokenQtyToRedeem.dividedBy(totalLPTokenSupply))
-          .multipliedBy(BigNumber(1).minus(slippagePercent.dividedBy(BigNumber(100)))),
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
       };
 
-      const expected = calculateTokenAmountsFromLPTokens(
-        lpTokenQtyToRedeem,
-        slippagePercent,
+      const baseTokenReserveQty = ethers.utils.parseUnits('500', 18);
+
+      const baseTokenQty1 = ethers.utils.parseUnits('100', 18);
+      const quoteTokenQty1 = getAddLiquidityQuoteTokenQtyFromBaseTokenQty(
+        baseTokenQty1,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+      const baseTokenQty2 = ethers.utils.parseUnits('500', 18);
+      const quoteTokenQty2 = getAddLiquidityQuoteTokenQtyFromBaseTokenQty(
+        baseTokenQty2,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+
+      const baseTokenQty3 = ethers.utils.parseUnits('600', 18);
+      const quoteTokenQty3 = getAddLiquidityQuoteTokenQtyFromBaseTokenQty(
+        baseTokenQty3,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+
+      expect(quoteTokenQty1.toString()).to.equal('0');
+      expect(quoteTokenQty2.toString()).to.equal('0');
+      expect(quoteTokenQty3.toString()).to.equal('500000000000000000000');
+    });
+  });
+
+  describe('getAddLiquidityBaseTokenQtyFromQuoteTokenQty', () => {
+    it('should return correct amount of baseToken qty, when baseDecay is present', () => {
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+
+      const baseTokenReserveQty = ethers.utils.parseUnits('1500', 18);
+      const quoteTokenQty1 = ethers.utils.parseUnits('2600', 18);
+      const baseTokenQty1 = getAddLiquidityBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQty1,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+      expect(baseTokenQty1.toString()).to.equal('20000000000000000000');
+
+      const quoteTokenQty2 = ethers.utils.parseUnits('2500', 18);
+      const baseTokenQty2 = getAddLiquidityBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQty2,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+      expect(baseTokenQty2.toString()).to.equal('0');
+
+      const quoteTokenQty3 = ethers.utils.parseUnits('100', 18);
+      const baseTokenQty3 = getAddLiquidityBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQty3,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+      expect(baseTokenQty3.toString()).to.equal('0');
+    });
+
+    it('should return correct amount of baseToken qty, when quoteTokenDecay is present', () => {
+      const internalBalanceBaseTokenReserveQty = ethers.utils.parseUnits('1000', 18);
+      const internalBalancesQuoteTokenReserveQty = ethers.utils.parseUnits('5000', 18);
+      const internalBalancesKLast = internalBalanceBaseTokenReserveQty.mul(
+        internalBalancesQuoteTokenReserveQty,
+      );
+
+      const internalBalances = {
+        baseTokenReserveQty: internalBalanceBaseTokenReserveQty,
+        quoteTokenReserveQty: internalBalancesQuoteTokenReserveQty,
+        kLast: internalBalancesKLast,
+      };
+
+      const baseTokenReserveQty = ethers.utils.parseUnits('500', 18);
+
+      const quoteTokenQty1 = ethers.utils.parseUnits('100', 18);
+      const baseTokenQty1 = getAddLiquidityBaseTokenQtyFromQuoteTokenQty(
+        quoteTokenQty1,
+        baseTokenReserveQty,
+        internalBalances,
+      );
+      expect(baseTokenQty1.toString()).to.equal('520000000000000000000');
+    });
+  });
+
+  describe('tokenImbalanceQtys', () => {
+    it('calculates imbalance as zero when no decay is present', () => {
+      const baseTokenReserveQty = ethers.BigNumber.from('1000');
+      const quoteTokenReserveQty = ethers.BigNumber.from('1000');
+      const internalBalances = {
         baseTokenReserveQty,
         quoteTokenReserveQty,
-        totalLPTokenSupply,
-      );
+        kLast: baseTokenReserveQty.mul(quoteTokenReserveQty),
+      };
 
-      expect(expected.quoteTokenReceived.toNumber()).to.equal(answer.quoteTokenReceived.toNumber());
-      expect(expected.baseTokenReceived.toNumber()).to.equal(answer.baseTokenReceived.toNumber());
-    });
-  });
-
-  describe('calculateFees', () => {
-    it('Should return an error when incorrect values are provided ', async () => {
-      const feesInBasisPoints = BigNumber('-2');
-      const swapAmount = BigNumber(100);
-
-      expect(() => calculateFees(feesInBasisPoints, swapAmount)).to.throw(NEGATIVE_INPUT);
-      expect(() => calculateFees(null, swapAmount)).to.throw(NAN_ERROR);
-      expect(() => calculateFees(undefined, swapAmount)).to.throw(NAN_ERROR);
+      const tokenImbalanceQtys = getTokenImbalanceQtys(baseTokenReserveQty, internalBalances);
+      expect(tokenImbalanceQtys.baseTokenImbalanceQty.eq(ethers.constants.Zero)).to.be.true;
+      expect(tokenImbalanceQtys.quoteTokenImbalanceQty.eq(ethers.constants.Zero)).to.be.true;
     });
 
-    it('Should calculate correct amount of fees', async () => {
-      const feesInBasisPoints1 = BigNumber('5');
-      const swapAmount1 = BigNumber('100');
-      const answer1 = swapAmount1.multipliedBy(feesInBasisPoints1.dividedBy(BASIS_POINTS));
+    it('calculates quote token imbalance when base decay is present', () => {
+      const baseTokenReserveQty = ethers.BigNumber.from('1000');
+      const internalBaseTokenReserveQty = ethers.BigNumber.from('900');
+      const quoteTokenReserveQty = ethers.BigNumber.from('1000');
+      const internalBalances = {
+        baseTokenReserveQty: internalBaseTokenReserveQty,
+        quoteTokenReserveQty,
+        kLast: baseTokenReserveQty.mul(quoteTokenReserveQty),
+      };
 
-      const feesInBasisPoints2 = BigNumber('30');
-      const swapAmount2 = BigNumber('100');
-      const answer2 = swapAmount1.multipliedBy(feesInBasisPoints2.dividedBy(BASIS_POINTS));
+      const tokenImbalanceQtys = getTokenImbalanceQtys(baseTokenReserveQty, internalBalances);
+      const wRatio = internalBaseTokenReserveQty.mul(WAD).div(quoteTokenReserveQty);
+      const decay = baseTokenReserveQty.sub(internalBaseTokenReserveQty);
+      const quoteTokenQtyExpected = decay.mul(WAD).div(wRatio);
 
-      expect(calculateFees(feesInBasisPoints1, swapAmount1).toNumber()).to.equal(
-        answer1.toNumber(),
-      );
-      expect(calculateFees(feesInBasisPoints2, swapAmount2).toNumber()).to.equal(
-        answer2.toNumber(),
-      );
-    });
-  });
-
-  describe('calculateInputAmountFromOutputAmount', () => {
-    it('Should calculate correct input amount accounting for fees and 0 slippage', async () => {
-      const outputTokenAmountBN = BigNumber(100);
-      const inputTokenReserveQtyBN = BigNumber(1000);
-      const outputTokenReserveQtyBN = BigNumber(1000);
-      const slippagePercentBN = BigNumber(0);
-      const liquidityFeeInBasisPointsBN = BigNumber(3000);
-
-      const numerator = outputTokenAmountBN
-        .multipliedBy(inputTokenReserveQtyBN)
-        .multipliedBy(BASIS_POINTS);
-      const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
-      const outputSlippageMultiplier = outputTokenReserveQtyBN.multipliedBy(
-        slippagePercentBN.dividedBy(BigNumber(100)),
-      );
-      const outputSlippageTerm = outputTokenAmountBN
-        .plus(outputSlippageMultiplier)
-        .minus(outputTokenReserveQtyBN);
-      const denominator = outputSlippageTerm.multipliedBy(basisPointDifference);
-      const calculatedInputAmount = numerator.dividedBy(denominator).abs();
-
-      const expectedInputAmount = calculateInputAmountFromOutputAmount(
-        outputTokenAmountBN,
-        inputTokenReserveQtyBN,
-        outputTokenReserveQtyBN,
-        slippagePercentBN,
-        liquidityFeeInBasisPointsBN,
-      );
-
-      expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
+      expect(tokenImbalanceQtys.baseTokenImbalanceQty.eq(ethers.constants.Zero)).to.be.true;
+      expect(tokenImbalanceQtys.quoteTokenImbalanceQty.eq(quoteTokenQtyExpected)).to.be.true;
     });
 
-    it('Should calculate correct input amount accounting for fees and slippage', async () => {
-      const outputTokenAmountBN = BigNumber(100);
-      const inputTokenReserveQtyBN = BigNumber(1000);
-      const outputTokenReserveQtyBN = BigNumber(1000);
-      const slippagePercentBN = BigNumber(5);
-      const liquidityFeeInBasisPointsBN = BigNumber(3000);
+    it('calculates base token imbalance when quote decay is present', () => {
+      const baseTokenReserveQty = ethers.BigNumber.from('1000');
+      const internalBaseTokenReserveQty = ethers.BigNumber.from('1100');
+      const quoteTokenReserveQty = ethers.BigNumber.from('1000');
+      const internalBalances = {
+        baseTokenReserveQty: internalBaseTokenReserveQty,
+        quoteTokenReserveQty,
+        kLast: baseTokenReserveQty.mul(quoteTokenReserveQty),
+      };
 
-      const numerator = outputTokenAmountBN
-        .multipliedBy(inputTokenReserveQtyBN)
-        .multipliedBy(BASIS_POINTS);
-      const basisPointDifference = BASIS_POINTS.minus(liquidityFeeInBasisPointsBN);
-      const outputSlippageMultiplier = outputTokenReserveQtyBN.multipliedBy(
-        slippagePercentBN.dividedBy(BigNumber(100)),
-      );
-      const outputSlippageTerm = outputTokenAmountBN
-        .plus(outputSlippageMultiplier)
-        .minus(outputTokenReserveQtyBN);
-      const denominator = outputSlippageTerm.multipliedBy(basisPointDifference);
-      const calculatedInputAmount = numerator.dividedBy(denominator).abs();
+      const tokenImbalanceQtys = getTokenImbalanceQtys(baseTokenReserveQty, internalBalances);
+      const decay = internalBaseTokenReserveQty.sub(baseTokenReserveQty);
 
-      const expectedInputAmount = calculateInputAmountFromOutputAmount(
-        outputTokenAmountBN,
-        inputTokenReserveQtyBN,
-        outputTokenReserveQtyBN,
-        slippagePercentBN,
-        liquidityFeeInBasisPointsBN,
-      );
-
-      expect(expectedInputAmount.toNumber()).to.equal(calculatedInputAmount.toNumber());
-    });
-
-    it('Should return an error when incorrect values are provided', async () => {
-      const outputTokenAmountBN = BigNumber(100);
-      const negativeInputTokenReserveQtyBN = BigNumber(-1000);
-      const outputTokenReserveQtyBN = BigNumber(1000);
-      const slippagePercentBN = BigNumber(5);
-      const liquidityFeeInBasisPointsBN = BigNumber(3000);
-
-      // ZERO case
-      expect(() =>
-        calculateInputAmountFromOutputAmount(
-          outputTokenAmountBN,
-          ZERO,
-          outputTokenReserveQtyBN,
-          slippagePercentBN,
-          liquidityFeeInBasisPointsBN,
-        ),
-      ).to.throw(INSUFFICIENT_LIQUIDITY);
-
-      // Negative inputs provided
-      expect(() =>
-        calculateInputAmountFromOutputAmount(
-          outputTokenAmountBN,
-          negativeInputTokenReserveQtyBN,
-          outputTokenReserveQtyBN,
-          slippagePercentBN,
-          liquidityFeeInBasisPointsBN,
-        ),
-      ).to.throw(NEGATIVE_INPUT);
-
-      // Nan cases
-      expect(() =>
-        calculateInputAmountFromOutputAmount(
-          outputTokenAmountBN,
-          null,
-          outputTokenReserveQtyBN,
-          slippagePercentBN,
-          liquidityFeeInBasisPointsBN,
-        ),
-      ).to.throw(NAN_ERROR);
-
-      expect(() =>
-        calculateInputAmountFromOutputAmount(
-          outputTokenAmountBN,
-          undefined,
-          outputTokenReserveQtyBN,
-          slippagePercentBN,
-          liquidityFeeInBasisPointsBN,
-        ),
-      ).to.throw(NAN_ERROR);
+      expect(tokenImbalanceQtys.quoteTokenImbalanceQty.eq(ethers.constants.Zero)).to.be.true;
+      expect(tokenImbalanceQtys.baseTokenImbalanceQty.eq(decay)).to.be.true;
     });
   });
 });

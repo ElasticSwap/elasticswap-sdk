@@ -185,7 +185,7 @@ export default class TokenList extends Cachable {
     const data = this._data.tokens || [];
 
     for (let i = 0; i < data.length; i += 1) {
-      const token = new Token(this.sdk, data[i]);
+      const token = new Token(this.sdk, data[i], !!this.name.match('Elastic'));
 
       // we're only interested in tokens on the current network
       if (token.chainId === this.sdk.networkId) {

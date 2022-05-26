@@ -11,11 +11,14 @@ import {
   validateIsNumber,
 } from '../utils/validations.mjs';
 import {
+  getAddLiquidityBaseTokenQtyFromQuoteTokenQty,
+  getAddLiquidityQuoteTokenQtyFromBaseTokenQty,
   getBaseTokenQtyFromQuoteTokenQty,
   getLPTokenQtyFromTokenQtys,
   getQuoteTokenQtyFromBaseTokenQty,
+  getTokenImbalanceQtys,
   getTokenQtysFromLPTokenQty,
-} from '../utils/mathLib2.mjs';
+} from '../utils/mathLib.mjs';
 
 const prefix = 'Exchange';
 const BASIS_POINTS = 10000;
@@ -104,6 +107,12 @@ export default class Exchange extends ERC20 {
     return this._baseTokenAddress;
   }
 
+  /**
+   * Tha cached base token balance of the exchange
+   *
+   * @readonly
+   * @memberof Exchange
+   */
   get baseTokenBalance() {
     return this.baseToken.balances[this.address] || toBigNumber(0);
   }
@@ -118,6 +127,12 @@ export default class Exchange extends ERC20 {
     return this._quoteTokenAddress;
   }
 
+  /**
+   * The cached quote token balance of the exchange
+   *
+   * @readonly
+   * @memberof Exchange
+   */
   get quoteTokenBalance() {
     return this.quoteToken.balances[this.address] || toBigNumber(0);
   }
@@ -143,6 +158,28 @@ export default class Exchange extends ERC20 {
   }
 
   /**
+   * The price of one quote token in base tokens.
+   *
+   * @return {Promise<BigNumber>}
+   * @memberof Exchange
+   */
+  async priceofQuoteInBase() {
+    const { baseTokenReserveQty, quoteTokenReserveQty } = await this.internalBalances();
+    return baseTokenReserveQty.dividedBy(quoteTokenReserveQty);
+  }
+
+  /**
+   * The price of one base token in quote tokens.
+   *
+   * @return {Promise<BigNumber>}
+   * @memberof Exchange
+   */
+  async priceOfBaseInQuote() {
+    const { baseTokenReserveQty, quoteTokenReserveQty } = await this.internalBalances();
+    return quoteTokenReserveQty.dividedBy(baseTokenReserveQty);
+  }
+
+  /**
    * Returns the internal balances of the exchange. This always has to be up to date, so no caching
    * is performed on the result.
    *
@@ -153,27 +190,43 @@ export default class Exchange extends ERC20 {
    * @memberof ERC20
    */
   async internalBalances(overrides) {
+    let baseTokenDecimals;
     let internalBalances;
+    let quoteTokenDecimals;
 
     // if there are overrides, fetch directly from the readonly contract
     if (isPOJO(overrides)) {
-      const results = await this.readonlyContract.internalBalances(overrides);
-      internalBalances = results[0];
+      const [results, btDecimals, qtDecimals] = await Promise.all([
+        this.readonlyContract.internalBalances(overrides),
+        this.sdk.erc20(this.baseTokenAddress).decimals(overrides),
+        this.sdk.erc20(this.quoteTokenAddress).decimals(overrides),
+      ]);
+
+      baseTokenDecimals = btDecimals;
+      internalBalances = results;
+      quoteTokenDecimals = qtDecimals;
     }
 
     // fetch the value from the network using multicall
     if (!internalBalances) {
-      const results = await this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances');
-      internalBalances = results[0];
+      const [results, btDecimals, qtDecimals] = await Promise.all([
+        this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+        this.sdk.erc20(this.baseTokenAddress).decimals({ multicall: true }),
+        this.sdk.erc20(this.quoteTokenAddress).decimals({ multicall: true }),
+      ]);
+
+      baseTokenDecimals = btDecimals;
+      internalBalances = results;
+      quoteTokenDecimals = qtDecimals;
     }
 
     const baseTokenReserveQty = this.toBigNumber(
       internalBalances.baseTokenReserveQty,
-      this.baseToken.decimals,
+      baseTokenDecimals,
     );
     const quoteTokenReserveQty = this.toBigNumber(
       internalBalances.quoteTokenReserveQty,
-      this.quoteToken.decimals,
+      quoteTokenDecimals,
     );
 
     return { baseTokenReserveQty, quoteTokenReserveQty };
@@ -272,7 +325,6 @@ export default class Exchange extends ERC20 {
         this.baseToken.allowance(this.sdk.account, this.address, { multicall: true }),
         this.quoteToken.allowance(this.sdk.account, this.address, { multicall: true }),
       ]);
-
     // save the user gas by confirming that the minimum values are not greater than the maximum ones
     validate(this.toBigNumber(baseTokenQtyMin).lte(baseTokenQtyDesired), {
       message: `Minimum amount of ${this.baseToken.symbol} requested is greater than the maximum.`,
@@ -285,12 +337,12 @@ export default class Exchange extends ERC20 {
     });
 
     // save the user gas by confirming that the allowances and balance match the request
-    validate(this.toBigNumber(baseTokenQtyDesired).lt(baseTokenBalance), {
+    validate(this.toBigNumber(baseTokenQtyDesired).lte(baseTokenBalance), {
       message: `You don't have enough ${this.baseToken.symbol}`,
       prefix,
     });
 
-    validate(this.toBigNumber(quoteTokenQtyDesired).lt(quoteTokenBalance), {
+    validate(this.toBigNumber(quoteTokenQtyDesired).lte(quoteTokenBalance), {
       message: `You don't have enough ${this.quoteToken.symbol}`,
       prefix,
     });
@@ -412,7 +464,7 @@ export default class Exchange extends ERC20 {
       prefix,
     });
 
-    validate(this.toBigNumber(baseTokenQty).lt(baseTokenBalance), {
+    validate(this.toBigNumber(baseTokenQty).lte(baseTokenBalance), {
       message: `You don't have enough ${this.baseToken.symbol} token`,
       prefix,
     });
@@ -498,7 +550,7 @@ export default class Exchange extends ERC20 {
       prefix,
     });
 
-    validate(this.toBigNumber(quoteTokenQty).lt(quoteTokenBalance), {
+    validate(this.toBigNumber(quoteTokenQty).lte(quoteTokenBalance), {
       message: `You don't have enough ${this.quoteToken.symbol} token`,
       prefix,
     });
@@ -549,7 +601,50 @@ export default class Exchange extends ERC20 {
     const expiration = Math.floor(Date.now() / 1000 + requestTimeoutSeconds);
     return this.swapQuoteTokenForBaseToken(quoteTokenQtyBN, minBaseTokenQty, expiration, overrides);
   }
+
   // CALCULATIONS
+
+  async getAddLiquidityBaseTokenQtyFromQuoteTokenQty(quoteTokenQty) {
+    const quoteTokenQtyBN = this.toBigNumber(quoteTokenQty);
+    validateIsBigNumber(quoteTokenQtyBN, { prefix });
+
+    const [baseTokenReserveQty, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+
+    const rawBaseTokenQty = getAddLiquidityBaseTokenQtyFromQuoteTokenQty(
+      this.toEthersBigNumber(quoteTokenQty, this.quoteToken.decimals),
+      baseTokenReserveQty,
+      internalBalances,
+    );
+
+    const baseTokenQty = this.toBigNumber(rawBaseTokenQty, this.baseToken.decimals);
+    return baseTokenQty;
+  }
+
+  async getAddLiquidityQuoteTokenQtyFromBaseTokenQty(baseTokenQty) {
+    const baseTokenQtyBN = this.toBigNumber(baseTokenQty);
+    validateIsBigNumber(baseTokenQtyBN, { prefix });
+
+    const [baseTokenReserveQty, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+
+    const rawQuoteTokenQty = getAddLiquidityQuoteTokenQtyFromBaseTokenQty(
+      this.toEthersBigNumber(baseTokenQty, this.baseToken.decimals),
+      baseTokenReserveQty,
+      internalBalances,
+    );
+
+    const quoteTokenQty = this.toBigNumber(rawQuoteTokenQty, this.quoteToken.decimals);
+    return quoteTokenQty;
+  }
 
   /**
    * gets the expected output amount of base tokens given the input
@@ -644,6 +739,35 @@ export default class Exchange extends ERC20 {
     return this.toBigNumber(rawLPTokenQty, this._decimals);
   }
 
+  /**
+   * Calculates the imbalanceQtys for each token. These represent the opposite of the decay.
+   * For example when baseTokenDecay is present, we need to add quote tokens.  This returns
+   * the amount of quote tokens needed to be added as `quoteTokenImbalanceQty` when in this state.
+   * @returns {obj} {baseTokenImbalanceQty: BigNumber quoteTokenImbalanceQty:BigNumber } the qtys of
+   * tokens that need to be added to the system to remove the decay.
+   */
+  async getTokenImbalanceQtys() {
+    const [baseTokenReserveQty, internalBalances] = await Promise.all([
+      this.sdk.multicall.enqueue(this.baseToken.abi, this.baseToken.address, 'balanceOf', [
+        this.address,
+      ]),
+      this.sdk.multicall.enqueue(this.abi, this.address, 'internalBalances'),
+    ]);
+
+    const tokenImbalancesQtys = getTokenImbalanceQtys(baseTokenReserveQty, internalBalances);
+
+    return {
+      baseTokenImbalanceQty: this.toBigNumber(
+        tokenImbalancesQtys.baseTokenImbalanceQty,
+        this.baseToken.decimals,
+      ),
+      quoteTokenImbalanceQty: this.toBigNumber(
+        tokenImbalancesQtys.quoteTokenImbalanceQty,
+        this.quoteToken.decimals,
+      ),
+    };
+  }
+
   // wraps the transaction in a notification popup and resolves when it has been mined
   async _handleTransaction(tx) {
     this.sdk.notify(tx);
@@ -651,163 +775,3 @@ export default class Exchange extends ERC20 {
     return receipt;
   }
 }
-
-/**
- * The following functions may or may not belong on this class. Leaving below for the moment.
- */
-
-/*
-
-  async calculateExchangeRate(inputTokenAddress) {
-    const inputTokenAddressLowerCase = inputTokenAddress.toLowerCase();
-    let inputTokenReserveQty = toBigNumber(0);
-    let outputTokenReserveQty = toBigNumber(0);
-
-    const internalBalances = await this.contract.internalBalances();
-    if (inputTokenAddressLowerCase === this.baseTokenAddress.toLowerCase()) {
-      inputTokenReserveQty = internalBalances.baseTokenReserveQty;
-      outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-    } else if (inputTokenAddressLowerCase === this.quoteTokenAddress.toLowerCase()) {
-      inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-      outputTokenReserveQty = internalBalances.baseTokenReserveQty;
-    }
-    return calculateExchangeRate(inputTokenReserveQty, outputTokenReserveQty);
-  }
-
-  async calculateFees(swapAmount) {
-    const liquidityFeeInBasisPoints = await this.liquidityFee;
-
-    return calculateFees(swapAmount, liquidityFeeInBasisPoints);
-  }
-
-  async calculateInputAmountFromOutputAmount(outputAmount, outputTokenAddress, slippagePercent) {
-    const outputTokenAddressLowerCase = outputTokenAddress.toLowerCase();
-    const outputTokenAmountBN = toBigNumber(outputAmount);
-    const slippagePercentBN = toBigNumber(slippagePercent);
-    const liquidityFeeInBasisPointsBN = toBigNumber(await this.liquidityFee);
-
-    let inputTokenReserveQty;
-    let outputTokenReserveQty;
-
-    const internalBalances = await this.contract.internalBalances();
-
-    if (outputTokenAddressLowerCase === this.baseTokenAddress.toLowerCase()) {
-      inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-      outputTokenReserveQty = internalBalances.baseTokenReserveQty;
-    } else {
-      inputTokenReserveQty = internalBalances.baseTokenReserveQty;
-      outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-    }
-
-    return calculateInputAmountFromOutputAmount(
-      outputTokenAmountBN,
-      inputTokenReserveQty,
-      outputTokenReserveQty,
-      slippagePercentBN,
-      liquidityFeeInBasisPointsBN,
-    );
-  }
-
-  async calculateLPTokenAmount(quoteTokenAmount, baseTokenAmount, slippage) {
-    const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
-    const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
-    const internalBalances = await this.contract.internalBalances();
-    const totalSupplyOfLiquidityTokens = await this.totalSupply();
-
-    return calculateLPTokenAmount(
-      quoteTokenAmount,
-      baseTokenAmount,
-      quoteTokenReserveQty,
-      baseTokenReserveQty,
-      slippage,
-      totalSupplyOfLiquidityTokens,
-      internalBalances,
-    );
-  }
-
-  /**
-   * The alternative way of calulating the priceImpact
-   * 100 - ( OALFLS x 100 )
-   *        ------
-   *         IOA
-   * OALFLS - outputAmountLessFessLessSlippage
-   * IOA - initialOutputAmount = input / exchangeRate
-   * /
-   async calculatePriceImpact(inputTokenAmount, inputTokenAddress, slippagePercent) {
-    const calculatedOutputAmountLessFeesLessSlippage = await this.calculateOutputAmountLessFees(
-      inputTokenAmount,
-      inputTokenAddress,
-      slippagePercent,
-    );
-
-    // this exchange rate is prior to swap occurance
-    const calculatedExchangeRate = await this.calculateExchangeRate(inputTokenAddress);
-    const iniialOutputAmount = toBigNumber(inputTokenAmount).dividedBy(calculatedExchangeRate);
-    const ratioMultiplier = calculatedOutputAmountLessFeesLessSlippage
-      .dividedBy(iniialOutputAmount)
-      .multipliedBy(toBigNumber(100));
-    const priceImpact = toBigNumber(100).minus(ratioMultiplier);
-
-    return priceImpact;
-  }
-
-  async calculateTokenAmountsFromLPTokens(lpTokenQtyToRedeem, slippagePercent) {
-    const quoteTokenReserveQty = await this._quoteToken.balanceOf(this._exchangeAddress);
-    const baseTokenReserveQty = await this._baseToken.balanceOf(this._exchangeAddress);
-    const totalLPTokenSupply = await this.totalSupply();
-
-    return calculateTokenAmountsFromLPTokens(
-      lpTokenQtyToRedeem,
-      slippagePercent,
-      baseTokenReserveQty,
-      quoteTokenReserveQty,
-      totalLPTokenSupply,
-    );
-  }
-
-  async calculateOutputAmountLessFees(inputAmount, inputTokenAddress, slippagePercent) {
-    const inputTokenAddressLowerCase = inputTokenAddress.toLowerCase();
-    const inputTokenAmountBN = toBigNumber(inputAmount);
-    let inputTokenReserveQty;
-    let outputTokenReserveQty;
-    const internalBalances = await this.contract.internalBalances();
-
-    if (inputTokenAddressLowerCase === this.baseTokenAddress.toLowerCase()) {
-      inputTokenReserveQty = internalBalances.baseTokenReserveQty;
-      outputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-    } else {
-      inputTokenReserveQty = internalBalances.quoteTokenReserveQty;
-      outputTokenReserveQty = internalBalances.baseTokenReserveQty;
-    }
-
-    return calculateOutputAmountLessFees(
-      inputTokenAmountBN,
-      inputTokenReserveQty,
-      outputTokenReserveQty,
-      slippagePercent,
-      await this.liquidityFee,
-    );
-  }
-
-  async calculateShareOfPool(quoteTokenAmount, baseTokenAmount, slippage) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(await this.totalSupply());
-    if (totalSupplyOfLiquidityTokens.eq(toBigNumber(0))) {
-      return toBigNumber(1); // 100% of pool!
-    }
-
-    const newTokens = await this.calculateLPTokenAmount(
-      quoteTokenAmount,
-      baseTokenAmount,
-      slippage,
-    );
-    return newTokens.div(totalSupplyOfLiquidityTokens.plus(newTokens));
-  }
-
-  async calculateShareOfPoolProvided(lpAmount) {
-    const totalSupplyOfLiquidityTokens = toBigNumber(await this.totalSupply());
-    if (totalSupplyOfLiquidityTokens.eq(lpAmount)) {
-      return toBigNumber(1); // 100% of pool!
-    }
-    return lpAmount.multipliedBy(100).dividedBy(totalSupplyOfLiquidityTokens);
-  }
-*/

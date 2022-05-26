@@ -15,9 +15,10 @@ const prefix = 'Token';
  * @extends {ERC20}
  */
 export default class Token extends ERC20 {
-  constructor(sdk, data) {
+  constructor(sdk, data, isElastic = false) {
     super(sdk, data.address);
     this._data = data;
+    this._isElastic = isElastic;
 
     // replicate touches between this and the standard ERC20 instance from the sdk
     this.sdk.erc20(this.address).subscribe(() => this.touch());
@@ -51,6 +52,16 @@ export default class Token extends ERC20 {
    */
   get decimals() {
     return this._data.decimals;
+  }
+
+  /**
+   * true if the token came from the elastic list
+   *
+   * @readonly
+   * @memberof Token
+   */
+  get isElastic() {
+    return this._isElastic;
   }
 
   /**

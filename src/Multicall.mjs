@@ -57,10 +57,8 @@ export default class Multicall extends Base {
       return contract[funcName](...args);
     });
 
-    let results = [];
-
     // fetch results from the blockchain
-    results = await this.provider.all(requests).catch(() => {
+    const results = await this.provider.all(requests).catch(() => {
       // if we error, process the requests individually so only the one with an error fails
       for (let i = 0; i < calls.length; i += 1) {
         const { abi, address, args, funcName, resolve, reject } = calls[i];
@@ -70,12 +68,16 @@ export default class Multicall extends Base {
       }
     });
 
-    // resolve each request's promise with its result
-    for (let i = 0; i < results.length; i += 1) {
-      calls[i].resolve(results[i]);
+    if (results) {
+      // resolve each request's promise with its result
+      for (let i = 0; i < results.length; i += 1) {
+        calls[i].resolve(results[i]);
+      }
+
+      return results;
     }
 
-    return results;
+    return [];
   }
 
   /**

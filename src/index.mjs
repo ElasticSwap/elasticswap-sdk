@@ -8,7 +8,11 @@ import ERC20Class from './tokens/ERC20.mjs';
 import ExchangeClass from './exchange/Exchange.mjs';
 import ExchangeFactoryClass from './exchange/ExchangeFactory.mjs';
 import LocalStorageAdapterClass from './adapters/LocalStorageAdapter.mjs';
+import MerklePoolClass from './staking/MerklePool.mjs';
+import MerklePoolsClass from './staking/MerklePools.mjs';
 import MulticallClass from './Multicall.mjs';
+import SLPClass from './tokens/SLP.mjs';
+import StakingPoolClass from './staking/StakingPool.mjs';
 import StakingPoolsClass from './staking/StakingPools.mjs';
 import StorageAdapterClass from './adapters/StorageAdapter.mjs';
 import SubscribableClass from './Subscribable.mjs';
@@ -112,7 +116,11 @@ export const ERC20 = ERC20Class;
 export const Exchange = ExchangeClass;
 export const ExchangeFactory = ExchangeFactoryClass;
 export const LocalStorageAdapter = LocalStorageAdapterClass;
+export const MerklePool = MerklePoolClass;
+export const MerklePools = MerklePoolsClass;
 export const Multicall = MulticallClass;
+export const SLP = SLPClass;
+export const StakingPool = StakingPoolClass;
 export const StakingPools = StakingPoolsClass;
 export const StorageAdapter = StorageAdapterClass;
 export const Subscribable = SubscribableClass;
@@ -136,7 +144,7 @@ export class SDK extends Subscribable {
    * @param {function} config.customFetch - should implement the Fetch API (optional)
    * @param {Object} config.env - environment configuration
    * @param {Object} config.env.blocknative - bnc-notify initialization options
-   * @param {Array<hardhat-deploy.MultiExport|Object{constractName: string, abi: []}>} config.env.contracts - deployed contract configuration by network
+   * @param {Array<hardhat-deploy.MultiExport|Object{contractName: string, abi: []}>} config.env.contracts - deployed contract configuration by network
    * @param {ethers.providers.Provider} config.provider - default provider (optional)
    * @param {ethers.Signer} config.signer - initial ethers signer (optional)
    * @param {StorageAdapter} config.storageAdapter - (optional)
@@ -309,6 +317,28 @@ export class SDK extends Subscribable {
 
   /**
    * @readonly
+   * @returns {MerklePools} - An instance of {@link MerklePools} for the current EVM chain
+   * @memberof SDK
+   */
+  get merklePools() {
+    if (this._merklePools) {
+      return this._merklePools;
+    }
+
+    try {
+      const merklePoolsAddress =
+        this.contractAddress('MerklePools') || this.contractAddress('MerklePoolsForeign');
+      this._merklePools = new MerklePools(this, merklePoolsAddress);
+      this.trackAddress(merklePoolsAddress);
+    } catch (e) {
+      console.error('Unable to load merklePools:', e);
+    }
+
+    return this._merklePools;
+  }
+
+  /**
+   * @readonly
    * @returns {Multicall} - The Multicall wrapper instance
    * @memberof SDK
    */
@@ -394,8 +424,10 @@ export class SDK extends Subscribable {
 
     try {
       const stakingPoolsAddress = this.contractAddress('StakingPools');
-      this._stakingPools = new StakingPools(this, stakingPoolsAddress);
-      this.trackAddress(stakingPoolsAddress);
+      if (isAddress(stakingPoolsAddress)) {
+        this._stakingPools = new StakingPools(this, stakingPoolsAddress);
+        this.trackAddress(stakingPoolsAddress);
+      }
     } catch (e) {
       console.error('Unable to load stakingPools:', e);
     }
@@ -610,6 +642,71 @@ export class SDK extends Subscribable {
    * @memberof SDK
    */
   contractAddress(contractName) {
+    // known defaults
+    if (this.networkHex === '0x1') {
+      if (contractName === 'TicToken') {
+        return '0x2163383c1f4e74fe36c50e6154c7f18d9fd06d6f';
+      }
+
+      if (contractName === 'USDC') {
+        return '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+      }
+
+      if (contractName === 'AMPL/TIC') {
+        return ethers.constants.AddressZero;
+      }
+
+      if (contractName === 'AMPL/USDC') {
+        return '0xa0c5aa50ce3cc69b1c478d8235597bc0c51dfdab';
+      }
+
+      if (contractName === 'AMPL/USDC.e') {
+        return ethers.constants.AddressZero;
+      }
+
+      if (contractName === 'FOXy/FOX') {
+        return '0x1b80e501e397dbf8b7d86d06bd42679d61cac756';
+      }
+
+      if (contractName === 'TIC/USDC') {
+        return '0x79274bf95e05f0e858ab78411f3ebe85909e4f76';
+      }
+
+      if (contractName === 'TIC/USDC.e') {
+        return ethers.constants.AddressZero;
+      }
+    }
+
+    if (this.networkHex === '0xa86a') {
+      if (contractName === 'USDC') {
+        return '0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664';
+      }
+
+      if (contractName === 'AMPL/TIC') {
+        return '0xa0c5aa50ce3cc69b1c478d8235597bc0c51dfdab';
+      }
+
+      if (contractName === 'AMPL/USDC') {
+        return ethers.constants.AddressZero;
+      }
+
+      if (contractName === 'AMPL/USDC.e') {
+        return '0x1b80e501e397dbf8b7d86d06bd42679d61cac756';
+      }
+
+      if (contractName === 'FOXy/FOX') {
+        return ethers.constants.AddressZero;
+      }
+
+      if (contractName === 'TIC/USDC') {
+        return ethers.constants.AddressZero;
+      }
+
+      if (contractName === 'TIC/USDC.e') {
+        return '0x4ae1da57f2d6b2e9a23d07e264aa2b3bbcaed19a';
+      }
+    }
+
     try {
       const deployedContract = this.env.contracts[this.networkHex][contractName];
 
@@ -619,7 +716,7 @@ export class SDK extends Subscribable {
     } catch (e) {
       console.error('MISSING ADDRESS, contract:', contractName, e.message);
       console.error('This was caused by a bad wallet network or bad configuration');
-      return [];
+      return '';
     }
   }
 
@@ -717,49 +814,46 @@ export class SDK extends Subscribable {
     }
 
     if (hash) {
-      if (this.networkId !== 1) {
-        const { update, dismiss } = this._notify.notification({
-          autoDismiss: 0,
-          eventCode: 'TransactionSubmitted',
-          type: 'pending',
-          message: `Transaction ${shortenHash(hash)} is processing...`,
-          onclick: () => dismiss(),
-        });
+      const { update, dismiss } = this._notify.notification({
+        autoDismiss: 0,
+        eventCode: 'TransactionSubmitted',
+        type: 'pending',
+        message: `Transaction ${shortenHash(hash)} is processing...`,
+        onclick: () => dismiss(),
+      });
 
-        const txSuccess = (finalHash) => {
+      const txSuccess = (finalHash) => {
+        update({
+          autoDismiss: 4000,
+          type: 'success',
+          message: `Transaction ${shortenHash(finalHash)} succeeded.`,
+        });
+      };
+
+      const handleError = ({ reason, replacement }) => {
+        if (reason && replacement && replacement.hash) {
+          update({
+            message: `Transaction ${shortenHash(replacement.hash)} is processing...`,
+          });
+
+          wait(1)
+            .then(() => txSuccess(replacement.hash))
+            .catch((err) => handleError(err));
+        } else {
           update({
             autoDismiss: 4000,
-            type: 'success',
-            message: `Transaction ${shortenHash(finalHash)} succeeded.`,
+            type: 'error',
+            message: `Transaction ${shortenHash(replacement.hash)} failed.`,
           });
-        };
+        }
+      };
 
-        const handleError = ({ reason, replacement }) => {
-          if (reason && replacement && replacement.hash) {
-            update({
-              message: `Transaction ${shortenHash(replacement.hash)} is processing...`,
-            });
+      // wait 2 blocks because some networks lag on read
+      wait(2)
+        .then(() => txSuccess(hash))
+        .catch((err) => handleError(err));
 
-            wait(1)
-              .then(() => txSuccess(replacement.hash))
-              .catch((err) => handleError(err));
-          } else {
-            update({
-              autoDismiss: 4000,
-              type: 'error',
-              message: `Transaction ${shortenHash(replacement.hash)} failed.`,
-            });
-          }
-        };
-
-        // wait 2 blocks because some networks lag on read
-        wait(2)
-          .then(() => txSuccess(hash))
-          .catch((err) => handleError(err));
-
-        return { update, dismiss };
-      }
-      return this._notify.hash(hash);
+      return { update, dismiss };
     }
 
     if (obj) {
